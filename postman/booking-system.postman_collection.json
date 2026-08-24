@@ -1,0 +1,407 @@
+{
+  "info": {
+    "name": "Booking System API",
+    "description": "Phase 1-3 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run 'List Services' before anything else, and 'List Available Slots' before creating a booking.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "resourceId", "value": "" },
+    { "key": "serviceId", "value": "" },
+    { "key": "date", "value": "2026-08-25" },
+    { "key": "startTime", "value": "" },
+    { "key": "bookingRef", "value": "" },
+    { "key": "retryKey", "value": "demo-retry-key-001" },
+    { "key": "businessId", "value": "" },
+    { "key": "holidayId", "value": "" },
+    { "key": "closedWeekdayDate", "value": "2026-08-28" },
+    { "key": "holidayDate", "value": "2026-08-29" }
+  ],
+  "item": [
+    {
+      "name": "1. Health & Services",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('dbConnected is true', () => pm.expect(pm.response.json().dbConnected).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Services",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/services",
+            "description": "Auto-saves the first service's id/resourceId as collection variables for the requests below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const services = pm.response.json();",
+                  "pm.test('Has at least one seeded service', () => pm.expect(services.length).to.be.above(0));",
+                  "if (services.length > 0) {",
+                  "  pm.collectionVariables.set('serviceId', services[0].id);",
+                  "  pm.collectionVariables.set('resourceId', services[0].resourceId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Resources",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/resources",
+            "description": "Auto-saves the first resource's businessId — needed for the Holidays & Hours folder below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const resources = pm.response.json();",
+                  "pm.test('Has at least one resource', () => pm.expect(resources.length).to.be.above(0));",
+                  "if (resources.length > 0) {",
+                  "  pm.collectionVariables.set('businessId', resources[0].businessId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Booking Flow",
+      "item": [
+        {
+          "name": "List Available Slots",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
+            "description": "Uses resourceId/serviceId from 'List Services'. Change the 'date' collection variable if you want a different day. Response is {slots, note} — note is set when the whole day is closed (holiday or weekly closure). Auto-saves the first open slot's startTime."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Response has a slots array', () => pm.expect(body).to.have.property('slots'));",
+                  "if (body.slots.length > 0) {",
+                  "  pm.collectionVariables.set('startTime', body.slots[0].startTime);",
+                  "} else if (body.note) {",
+                  "  console.log('No slots — closed:', body.note);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Booking",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Postman Test Patient\",\n  \"customerPhone\": \"+8801000000000\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+            },
+            "description": "Books the slot found by 'List Available Slots'. A fresh random idempotencyKey is generated each time this runs, so re-running it with a NEW slot creates a separate booking. Auto-saves the returned bookingRef."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const booking = pm.response.json();",
+                  "pm.collectionVariables.set('bookingRef', booking.bookingRef);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Booking by Ref",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/bookings/{{bookingRef}}",
+            "description": "Public lookup by the customer-facing booking reference — same endpoint Phase 4's QR check-in will use."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Booking status is BOOKED', () => pm.expect(pm.response.json().status).to.eql('BOOKED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Concurrency & Idempotency Tests",
+      "item": [
+        {
+          "name": "Double-Booking Attempt (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Second Patient (should be rejected)\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+            },
+            "description": "Run this right after 'Create Booking' WITHOUT re-running 'List Available Slots' — it reuses the same startTime that's already booked, with a different (fresh) idempotencyKey. Should fail with 409, proving the @@unique([resourceId, startTime]) constraint works."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Idempotent Retry - First Call",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Retry Test Patient\",\n  \"idempotencyKey\": \"{{retryKey}}\"\n}"
+            },
+            "description": "Run 'List Available Slots' again first to get a fresh, unbooked startTime, THEN run this request. Uses the fixed 'retryKey' collection variable instead of a random guid."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 (first time creating)', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('bookingRef', pm.response.json().bookingRef);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Idempotent Retry - Second Call (same key)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Retry Test Patient\",\n  \"idempotencyKey\": \"{{retryKey}}\"\n}"
+            },
+            "description": "Identical body to 'Idempotent Retry - First Call', including the same idempotencyKey. Should return 200 with the SAME bookingRef instead of creating a duplicate or erroring."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200 (returned existing booking)', () => pm.response.to.have.status(200));",
+                  "pm.test('Same bookingRef as first call', () => pm.expect(pm.response.json().bookingRef).to.eql(pm.collectionVariables.get('bookingRef')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Holidays & Hours",
+      "item": [
+        {
+          "name": "Slots on a Weekly-Closed Day (expect empty + note)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{closedWeekdayDate}}",
+            "description": "The seeded resource has closedWeekdays: [5] (Friday), and closedWeekdayDate defaults to a Friday. Should return an empty slots array plus a note explaining the weekly closure."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('No open slots', () => pm.expect(body.slots.length).to.eql(0));",
+                  "pm.test('Has a closure note', () => pm.expect(body.note).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Slots on the Seeded Holiday (expect empty + note)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{holidayDate}}",
+            "description": "holidayDate defaults to the seed script's 'Staff Training Day' holiday. Should return an empty slots array plus a note with the holiday reason."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('No open slots', () => pm.expect(body.slots.length).to.eql(0));",
+                  "pm.test('Note mentions the holiday reason', () => pm.expect(body.note).to.include('Staff Training Day'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Holidays",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/holidays?businessId={{businessId}}",
+            "description": "Requires businessId from 'List Resources'. Should include the seeded 'Staff Training Day' holiday."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Holiday",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/holidays",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"date\": \"2026-09-15\",\n  \"reason\": \"Postman Test Holiday\"\n}"
+            },
+            "description": "Creates a new one-off closure. Auto-saves the returned holiday's id so 'Delete Holiday' below can clean it up."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('holidayId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Duplicate Holiday (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/holidays",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"date\": \"2026-09-15\",\n  \"reason\": \"Duplicate attempt\"\n}"
+            },
+            "description": "Same businessId+date as 'Add Holiday' above. The @@unique([businessId, date]) constraint should reject this with 409."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Holiday",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/holidays/{{holidayId}}",
+            "description": "Cleans up the holiday created by 'Add Holiday'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Resource Hours",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/resources/{{resourceId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workingHoursStart\": \"10:00\",\n  \"workingHoursEnd\": \"18:00\",\n  \"closedWeekdays\": [5, 6]\n}"
+            },
+            "description": "Updates the resource's daily hours and adds Saturday (6) to the weekly closures alongside the seeded Friday (5). Re-run 'List Available Slots' afterward to see the new hours reflected."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const resource = pm.response.json();",
+                  "pm.test('Working hours updated', () => pm.expect(resource.workingHoursStart).to.eql('10:00'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

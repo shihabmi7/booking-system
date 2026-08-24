@@ -15,6 +15,9 @@ model Business {
   timezone  String     @default("UTC")
   createdAt DateTime   @default(now())
   resources Resource[]
+  // Holidays apply to the whole business (every resource) rather than per-resource —
+  // most closures (public holidays, the clinic being shut) affect everyone at once.
+  holidays  Holiday[]
 }
 
 // A doctor / stylist / dentist / chair — whatever the bookable "unit" is for a Business.
@@ -23,13 +26,28 @@ model Resource {
   name              String
   businessId        String
   business          Business  @relation(fields: [businessId], references: [id])
-  // Stored as "HH:MM" 24h strings for now — kept simple since real working-hours
-  // rules (breaks, days off) are a Phase 3+ problem once slot logic is built.
+  // Stored as "HH:MM" 24h strings — one fixed daily range, applied to every non-closed day.
   workingHoursStart String    @default("09:00")
   workingHoursEnd   String    @default("17:00")
+  // Days of the week this resource never works, regardless of holidays.
+  // 0 = Sunday ... 6 = Saturday (matches JS Date.getDay()).
+  closedWeekdays    Int[]     @default([])
   services          Service[]
   bookings          Booking[]
   createdAt         DateTime  @default(now())
+}
+
+// A specific one-off closed date for a Business (public holiday, planned closure, etc) —
+// distinct from closedWeekdays, which is a recurring weekly pattern.
+model Holiday {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  date       DateTime @db.Date
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@unique([businessId, date])
 }
 
 // Something a Resource offers — has a duration (used later for slot generation) and a price.
@@ -76,5 +94,15 @@ model Booking {
   service       Service       @relation(fields: [serviceId], references: [id])
   checkedInAt   DateTime?
   checkInMethod String? // "qr" | "manual"
+  // Optional client-supplied key for safe retries (e.g. a flaky network causing the same
+  // "create booking" request to be sent twice) — a repeated key returns the original
+  // booking instead of creating a duplicate.
+  idempotencyKey String?      @unique
   createdAt     DateTime      @default(now())
+
+  // Last line of defense against double-booking: even if two requests for the same
+  // resource+startTime both pass the application-level availability check at the same
+  // instant (a check-then-act race), only one INSERT can win here — the other fails
+  // with a unique constraint violation, which the API turns into a clean 409 response.
+  @@unique([resourceId, startTime])
 }

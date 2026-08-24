@@ -92,4 +92,109 @@ reference (used in the QR code) never overlaps with or reveals anything about th
 
 ---
 
-## Phase 3 — (not started yet)
+## Phase 3 — Booking API
+
+**Q: What's a "check-then-act" race condition, and where does this project have one?**
+A: It's when code checks a condition, then acts on it, but something else can change that
+condition in between — the check is no longer true by the time you act on it. `POST /api/bookings`
+checks whether a slot is available (`getAvailableSlots`), then creates the booking as a separate
+step. If two requests for the same slot both pass the check at nearly the same instant, both would
+try to create the booking — the check alone can't prevent that, because there's a gap between
+"checked" and "acted."
+
+**Q: If the availability check can't prevent the race condition, why keep it at all?**
+A: It's for the error message, not correctness. Without it, a double-booking attempt would fail
+with a raw database constraint error, which is confusing to the end user and leaks internal
+details. The application-level check gives a clean "that slot isn't available" response for the
+common case (checking a stale slot list), while the database constraint is what actually
+guarantees correctness for the rare concurrent-request case.
+
+**Q: How does a unique constraint actually prevent two simultaneous requests from both succeeding?**
+A: The database itself enforces it at the storage layer — when two `INSERT`s for the same
+`(resourceId, startTime)` pair happen concurrently, the database serializes them (one has to
+happen before the other, even if they arrived "at the same time" from the app's perspective).
+Whichever one commits first succeeds; the second gets a unique-constraint-violation error, because
+the database won't allow the duplicate row to exist. This project's `@@unique([resourceId, startTime])`
+in `schema.prisma` is what creates that constraint; the `catch` block in `bookings.ts` checks for
+Prisma's `P2002` error code and turns it into a `409 Conflict` instead of letting it surface as a
+raw 500 error.
+
+**Q: What is idempotency, and how is it implemented here?**
+A: An idempotent operation produces the same result no matter how many times it's repeated —
+useful for retries after a timeout or flaky connection, where the client can't tell if the first
+request actually succeeded. `POST /api/bookings` accepts an optional `idempotencyKey`; if a booking
+already exists with that key, the endpoint returns the existing booking instead of creating a new
+one. The key is only useful if the client generates and reuses the *same* key across retries of the
+*same* logical request — a new key each time defeats the purpose.
+
+**Q: Why does the slot-generation logic live in a separate pure function (`generateSlotCandidates`)
+instead of directly inside the route handler?**
+A: It has no dependencies on Express, Prisma, or the database — just plain input (working hours,
+duration, date) to plain output (a list of time ranges). That makes it trivial to unit test in
+isolation (no test database or mock HTTP request needed) and reusable — both `GET /api/slots` and
+the availability check inside `POST /api/bookings` call the same underlying logic through
+`services/availability.ts`, so there's one definition of "available" instead of two that could drift.
+
+**Q: How do you check if two time ranges overlap?**
+A: `rangeA.start < rangeB.end && rangeB.start < rangeA.end`. It's easier to reason about the
+non-overlap case first — two ranges don't overlap if one ends before the other starts, in either
+direction (`a.end <= b.start || b.end <= a.start`) — then negate it. This project's
+`services/availability.ts` uses exactly this check to filter out any candidate slot that overlaps
+an existing booking.
+
+---
+
+## Post-Phase 3 addition — Holidays & working hours
+
+**Q: Why are recurring weekly closures (`closedWeekdays`) and one-off holidays (`Holiday`) modeled
+as two separate things instead of one?**
+A: They have different shapes and different owners. A weekly closure is a fixed, recurring rule
+about one specific resource (e.g. "Dr. Rahman never works Fridays") — it doesn't need a row per
+week, just an array of weekday numbers on the `Resource` itself. A holiday is a specific one-off
+date that typically applies to the *whole business* at once (a public holiday, a planned shutdown)
+— that needs its own table so you can add/remove individual dates without touching every resource.
+Modeling them as one generic "closure" concept would force awkward choices, like whether a weekly
+rule needs its own row for every future Friday.
+
+**Q: Why does `Holiday` belong to `Business` instead of `Resource`?**
+A: Because in the common case, a holiday affects everyone — if the clinic is closed for a public
+holiday, every resource in it is closed too. Attaching holidays to the business lets you declare
+that once. The tradeoff: this schema can't currently express "only Dr. Rahman is off on this one
+date, but the rest of the clinic is open" — that would need a resource-specific holiday concept,
+deliberately left out here since it wasn't a requirement yet. Worth naming as a known limitation if asked.
+
+**Q: Why does `getAvailableSlots` check `closedWeekdays` before querying the `Holiday` table, instead of the other way around?**
+A: Cheapest check first. `closedWeekdays` is already sitting on the `resource` object that was
+just fetched — checking it costs nothing extra. The holiday check requires an additional database
+query. If the weekday check already proves the day is closed, there's no reason to spend a query
+confirming something that no longer matters — the function returns early either way.
+
+**Q: The `Holiday.date` field uses `@db.Date` instead of a plain `DateTime`. What's the difference, and why does it matter here?**
+A: A regular `DateTime` in Postgres stores a specific instant, including a time component (and
+often a timezone) — `2026-08-29T00:00:00Z` is a different value than `2026-08-29T05:00:00Z` even
+though a human would call both "August 29th." `@db.Date` stores only the calendar date, with no
+time component at all, so `findUnique` with a compound key like `businessId_date` matches reliably
+regardless of what time of day the record was created — exactly what you want for "is this
+calendar date a holiday," where the time component is meaningless.
+
+**Q: `GET /api/slots` changed from returning a bare array to an object (`{ slots, note }`). Why is that not considered a breaking change to just avoid?**
+A: It technically is a breaking change to the response shape — any existing client code doing
+`response.map(...)` directly would break. It was made anyway because the alternative (returning an
+empty array with zero explanation for *why* there's nothing available) is a worse API: a customer
+sees "no slots" and has no idea whether that's a fully-booked day, a holiday, or a bug. Breaking
+changes are sometimes the right call during active development, before an API has real external
+consumers depending on the old shape — this is exactly the kind of change that would need a
+versioned endpoint (`/v2/slots`) or a deprecation period once the API is actually public.
+
+**Q: Seed scripts often use `create`, but this project's seed now checks for existing data first. Why does that matter in practice?**
+A: `prisma.business.create()` always inserts a new row — it has no idea whether one already
+exists. Running `npm run seed` more than once (easy to do without noticing, e.g. re-running it
+after every migration out of habit) silently created a second "Sunrise Family Clinic" with its
+own resource and services each time, which showed up as duplicate rows on the `/services` page.
+The fix is a `findFirst` check before the `create`, so re-running the script is a safe no-op
+instead of a data-duplication bug. This is the same idea as the `idempotencyKey` on bookings,
+just applied to a setup script instead of an API endpoint.
+
+---
+
+## Phase 4 — (not started yet)

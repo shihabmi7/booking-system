@@ -81,4 +81,64 @@ the initial render when the fetch hasn't resolved yet.
 
 ---
 
-## Phase 3 — (not started yet)
+## Phase 3 — Booking flow
+
+**Q: `BookPage` has two `useEffect` calls — one with `[]` and one with `[selectedServiceId, date]`.
+Why not combine them into one?**
+A: They run for different reasons and at different times. The `[]` effect loads the service list
+exactly once, when the page first mounts — there's nothing to depend on. The
+`[selectedServiceId, date]` effect needs to re-run every time the user changes either the service
+or the date, because the slots it fetches depend on both. Combining them would mean re-fetching
+the entire service list every time the user just changes the date, which is wasteful and wrong.
+
+**Q: Why does changing the selected service also clear `selectedSlot`, even though the user didn't touch the slot picker?**
+A: A previously selected slot belongs to the *previous* service/date combination — its `startTime`
+was only valid because of the fetch that returned it. If the service changes and the app kept the
+old `selectedSlot` around, the booking form could submit a startTime that doesn't correspond to
+any real availability for the newly selected service. Clearing it forces the user to pick a slot
+that's actually valid for their current selection.
+
+**Q: The booking form handles a `409` response specially instead of just treating it like any other error. Why?**
+A: A `409` here means something *specific and recoverable*: someone else booked that slot in the
+gap between this page loading it and the user submitting. The right response isn't just showing an
+error message — it's clearing the stale `selectedSlot` and re-fetching the slot list so the taken
+slot disappears and the user can immediately pick another one. A generic error handler would leave
+the user stuck retrying a slot that will never succeed.
+
+**Q: What does `useParams` do, and why does `BookingDetailsPage` need it?**
+A: `useParams()` reads the dynamic segments of the current URL as defined by the route — for
+`<Route path="/bookings/:bookingRef" element={<BookingDetailsPage />} />`, visiting
+`/bookings/abc-123` makes `useParams()` return `{ bookingRef: "abc-123" }`. The component uses that
+value to know which booking to fetch, without the parent needing to pass it as a prop — the URL
+itself is the source of that data.
+
+**Q: Why do both `BookPage` (after a successful submit) and `FindBookingPage` (after a manual
+search) send the user to the same `/bookings/:bookingRef` route instead of each having its own
+confirmation screen?**
+A: There's no meaningful difference between "a booking that was just created" and "a booking someone
+looked up" once you have the reference — the details to show are identical. Reusing one route
+avoids maintaining two near-duplicate confirmation UIs, and it's the same URL shape a QR code
+(Phase 4) will encode and link straight into.
+
+---
+
+## Post-Phase 3 addition — Holidays & working hours
+
+**Q: `BookPage` had `setSlots` called directly inside the fetch `.then()`, but now there's a
+`refreshSlots` helper function instead. Why extract it?**
+A: The same fetch-and-set logic needed to run from two different places: the `useEffect` that
+watches service/date changes, and the 409-handler in `handleSubmit` that needs to refresh slots
+after a booking conflict. Without extracting it, both places would duplicate the same
+`fetch` + `URLSearchParams` + `.then()` chain, and a future change (like adding an extra query
+param) would have to be made twice and could easily drift out of sync.
+
+**Q: Why does the "no open slots" message only show when there's no closure `note`?**
+A: They're two different situations that need two different messages. If `note` is set, the
+backend has already explained *why* there's nothing available (a holiday or weekly closure) — showing
+a generic "no open slots" underneath it would be redundant and slightly conflicting. The condition
+`!closureNote && slots.length === 0` specifically means "the day is open, but every slot happens to
+already be booked," which is worth saying differently than "the business is closed today."
+
+---
+
+## Phase 4 — (not started yet)
