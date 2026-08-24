@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A single clinic/salon/dentist office. Phase 1 MVP scope = one Business, but the
+// schema supports many, since that's the natural shape for later phases.
+model Business {
+  id        String     @id @default(uuid())
+  name      String
+  timezone  String     @default("UTC")
+  createdAt DateTime   @default(now())
+  resources Resource[]
+}
+
+// A doctor / stylist / dentist / chair — whatever the bookable "unit" is for a Business.
+model Resource {
+  id                String    @id @default(uuid())
+  name              String
+  businessId        String
+  business          Business  @relation(fields: [businessId], references: [id])
+  // Stored as "HH:MM" 24h strings for now — kept simple since real working-hours
+  // rules (breaks, days off) are a Phase 3+ problem once slot logic is built.
+  workingHoursStart String    @default("09:00")
+  workingHoursEnd   String    @default("17:00")
+  services          Service[]
+  bookings          Booking[]
+  createdAt         DateTime  @default(now())
+}
+
+// Something a Resource offers — has a duration (used later for slot generation) and a price.
+model Service {
+  id           String    @id @default(uuid())
+  name         String
+  durationMins Int
+  price        Decimal   @db.Decimal(10, 2)
+  resourceId   String
+  resource     Resource  @relation(fields: [resourceId], references: [id])
+  bookings     Booking[]
+  createdAt    DateTime  @default(now())
+}
+
+enum BookingStatus {
+  BOOKED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+// Note: no separate "Slot" table. Available slots are computed on demand (Phase 3)
+// from a Resource's working hours minus existing Bookings, rather than pre-generated
+// and stored — avoids stale/exploding data for recurring daily availability.
+//
+// Note: no separate "CheckIn" table either — checkedInAt/checkInMethod live directly
+// on Booking since it's a 1:1 relationship. A separate table would be overkill for MVP.
+model Booking {
+  id            String        @id @default(uuid())
+  // The public-facing ID customers use to check in via QR/booking-id — deliberately
+  // separate from the internal `id` so it can be regenerated/rotated without changing
+  // the primary key relationships.
+  bookingRef    String        @unique @default(uuid())
+  customerName  String
+  customerPhone String?
+  customerEmail String?
+  status        BookingStatus @default(BOOKED)
+  startTime     DateTime
+  endTime       DateTime
+  resourceId    String
+  resource      Resource      @relation(fields: [resourceId], references: [id])
+  serviceId     String
+  service       Service       @relation(fields: [serviceId], references: [id])
+  checkedInAt   DateTime?
+  checkInMethod String? // "qr" | "manual"
+  createdAt     DateTime      @default(now())
+}

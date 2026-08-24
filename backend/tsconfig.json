@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",           // which JS version to compile down to — ES2020 supports optional chaining, etc, and Node 18+ runs it natively
+    "module": "node16",           // Node's module system (require/module.exports) — "node16" is the modern setting,
+                                   // it understands both CommonJS and ESM the same way Node itself does
+    "lib": ["ES2020"],            // which built-in type definitions to include (Array, Promise, etc, up to ES2020 features)
+    "outDir": "dist",             // where compiled .js files go when you run "npm run build"
+    "rootDir": "src",             // where your .ts source files live — keeps output structure mirroring input structure
+
+    "strict": true,               // turns on ALL strict type-checking flags at once (noImplicitAny, strictNullChecks, etc)
+                                   // — this is what catches real bugs; keep this on, it's the whole point of using TS
+
+    "esModuleInterop": true,      // lets you write `import express from "express"` instead of `import * as express from "express"`
+                                   // for libraries that weren't originally written as ES modules
+
+    "skipLibCheck": true,         // skips type-checking inside node_modules' .d.ts files — speeds up compilation,
+                                   // you trust that published libraries' own types are already correct
+
+    "forceConsistentCasingInFileNames": true,  // errors if you import "./Health" but the file is "./health.ts" —
+                                                 // catches bugs that only show up on case-sensitive filesystems (Linux/EC2!)
+                                                 // even though your Mac won't complain locally
+
+    "resolveJsonModule": true,    // allows `import data from "./file.json"` directly in TS code
+
+    "moduleResolution": "node16", // matches "module": "node16" above — the old "node" setting (aka node10) is deprecated in TS 6+
+
+    "sourceMap": true             // generates .js.map files alongside compiled output, so stack traces/debuggers
+                                   // point back to your original .ts lines instead of compiled .js lines
+  },
+  "include": ["src/**/*.ts"]      // only compile files under src/ — everything else (config files, tests elsewhere) is ignored
+}
