@@ -141,6 +141,14 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   (`/customer/bookings`), not nested under `/customer/account/*`. Every link that pointed at
   the old `/customer/account/bookings` path (top nav, the AppBar avatar menu, the mobile
   drawer, `HomePage`, `BookingDetailsPage`'s error state) was updated to match.
+- **Services → Book handoff:** `/services` is now `RequireCustomerAuth`-gated (was public).
+  Each row has a "Book" button linking to `/book?serviceId=<id>`; `BookPage` reads that query
+  param once its own service list loads and pre-selects it, so the wizard opens with the
+  service already chosen instead of the visitor picking it again. Passed as a query param
+  rather than route state specifically so it survives a login redirect —
+  `RequireCustomerAuth` now preserves `pathname + search` (previously pathname only), so an
+  anonymous visitor who clicks "Book" for a specific service still lands back on that same
+  pre-selected service after logging in, not a blank wizard.
 
 ### What's next
 - **Phase 6: AWS deployment** — EC2 for the API, RDS for Postgres, S3 for QR images and
@@ -252,8 +260,8 @@ booking-system/
     ├── src/pages/StaffBookingPage.tsx # "/staff/bookings/new" — staff books for an existing customer or a walk-in
     ├── src/pages/HomePage.tsx  # "/" — public landing page (book / find booking CTAs)
     ├── src/pages/DashboardPage.tsx # "/dashboard" — business-wide daily stats (auth required)
-    ├── src/pages/ServicesPage.tsx # "/services" — real seeded data from GET /api/services
-    ├── src/pages/BookPage.tsx  # "/book" — the booking wizard (customer login required)
+    ├── src/pages/ServicesPage.tsx # "/services" — service list from GET /api/services, per-row "Book" button (customer login required)
+    ├── src/pages/BookPage.tsx  # "/book" — the booking wizard (customer login required), pre-selects ?serviceId= if present
     ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form (staff-only, auth required)
     ├── src/pages/BookingDetailsPage.tsx # "/bookings/:bookingRef" — booking details + QR
     ├── src/pages/CheckInPage.tsx        # "/checkin" — staff manual check-in form (auth required)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
@@ -11,6 +12,8 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
+import Button from "@mui/material/Button";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 
 // Shape returned by GET /api/services — mirrors the Prisma query in
 // backend/src/routes/services.ts (service fields + nested resource + business name).
@@ -66,6 +69,7 @@ export default function ServicesPage() {
                 <TableCell>Price</TableCell>
                 <TableCell>Provider</TableCell>
                 <TableCell>Business</TableCell>
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
@@ -78,6 +82,21 @@ export default function ServicesPage() {
                   <TableCell>${service.price}</TableCell>
                   <TableCell>{service.resource.name}</TableCell>
                   <TableCell>{service.resource.business.name}</TableCell>
+                  <TableCell align="right">
+                    {/* Carries the service through to BookPage via a query param (not route
+                        state) specifically so it survives a login redirect if the visitor
+                        isn't logged in yet — see RequireCustomerAuth.tsx. BookPage picks this
+                        up on load and pre-selects it, leaving date/slot/confirm untouched. */}
+                    <Button
+                      component={RouterLink}
+                      to={`/book?serviceId=${service.id}`}
+                      size="small"
+                      variant="outlined"
+                      startIcon={<EventAvailableIcon />}
+                    >
+                      Book
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

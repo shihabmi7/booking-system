@@ -343,7 +343,14 @@ export default function App() {
               </RequireAuth>
             }
           />
-          <Route path="/services" element={<ServicesPage />} />
+          <Route
+            path="/services"
+            element={
+              <RequireCustomerAuth>
+                <ServicesPage />
+              </RequireCustomerAuth>
+            }
+          />
           <Route
             path="/book"
             element={

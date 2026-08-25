@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
 import { useCustomerAuth } from "../auth/CustomerAuthContext";
 import { useCustomerAuthFetch } from "../auth/useCustomerAuthFetch";
 import Typography from "@mui/material/Typography";
@@ -41,6 +41,7 @@ export default function BookPage() {
   const navigate = useNavigate();
   const { customer } = useCustomerAuth();
   const customerAuthFetch = useCustomerAuthFetch();
+  const [searchParams] = useSearchParams();
 
   const [services, setServices] = useState<Service[] | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -62,6 +63,22 @@ export default function BookPage() {
       .then(setServices)
       .catch(() => setError("Failed to load services"));
   }, []);
+
+  // Pre-select a service passed via ?serviceId= — e.g. clicking "Book" next to a specific
+  // service on ServicesPage. A query param rather than route state on purpose: it survives
+  // the login redirect if the visitor wasn't logged in yet (RequireCustomerAuth preserves
+  // pathname + search), and it makes "book this exact service" a shareable/bookmarkable link.
+  // Runs once services are loaded, since the id has to actually match something in the list —
+  // an unknown or missing id is silently ignored, leaving the dropdown on its default "Select
+  // a service…" placeholder rather than erroring.
+  useEffect(() => {
+    if (!services) return;
+    const requestedId = searchParams.get("serviceId");
+    if (requestedId && services.some((s) => s.id === requestedId)) {
+      setSelectedServiceId(requestedId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services]);
 
   function refreshSlots(resourceId: string, serviceId: string, forDate: string) {
     const params = new URLSearchParams({ resourceId, serviceId, date: forDate });
