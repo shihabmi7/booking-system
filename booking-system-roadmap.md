@@ -135,6 +135,65 @@ Frontend:
 - **Interview angle:** React context for cross-cutting concerns (auth) vs prop drilling,
   client-side route guards vs relying on the API alone, handling token expiry gracefully in the UI.
 
+### Post-Phase 5 addition — Service management endpoints ✅ DONE
+Closes a gap noticed while reviewing what admin UI would even need: `routes/services.ts` had
+only ever had `GET`, so there was no way to add/edit/remove a service without hand-editing
+`prisma/seed.ts` and re-seeding.
+- `POST /api/services`, `PATCH /api/services/:id`, `DELETE /api/services/:id` — all ADMIN only.
+  `GET /api/services` stays public (customers need it for the booking wizard).
+- Same ownership-check pattern as holidays/resources/queue, but one step removed: `Service`
+  has no `businessId` column of its own, so the check looks up the target `resourceId`'s
+  business first and compares that — otherwise an admin could attach a service to another
+  business's resource just by guessing its id.
+- `DELETE` catches Prisma's `P2003` (foreign key violation) and returns a clean `409` instead
+  of a raw 500 when a service still has bookings referencing it.
+- Along the way, fixed a real type error in `services/auth.ts`'s `signToken` — the installed
+  `@types/jsonwebtoken` types `expiresIn` as a template-literal type (`"8h"`, `"30m"`, etc.),
+  not a plain `string`, so reading it from `process.env` needed an explicit cast.
+- Postman collection: "Add/Update/Delete Service (Admin)" plus a 403 test for staff attempting
+  to add one, in the "1. Health & Services" folder.
+
+Frontend:
+- `auth/useAuthFetch.ts` — a shared hook wrapping `fetch()` that attaches
+  `Authorization: Bearer <token>` and logs the user out on a `401`. Introduced here because a
+  third and fourth staff page (the new admin pages) would have meant a fourth copy of that
+  logic; `CheckInPage`/`QueuePage` were refactored to use it too, closing a gap flagged back
+  in the Phase 5 frontend interview-prep notes.
+- `auth/RequireAuth.tsx` — extended with an optional `role` prop. Missing-auth still redirects
+  to `/login` (a 401-shaped problem, fixable by logging in); a logged-in user with the wrong
+  role gets an inline "Access denied" message instead (a 403-shaped problem, logging in again
+  wouldn't help) — mirrors the distinction the backend itself makes.
+- `pages/admin/AdminLayout.tsx` — shared shell with a Services/Holidays/Hours sub-nav and an
+  `<Outlet/>`, mounted at `/admin` (nested routes, `<Route index>` redirects to `/admin/services`).
+- `pages/admin/ServicesAdminPage.tsx` — add/edit/delete services. Uses the public
+  `GET /api/services` response but filters to the admin's own resources client-side (the real
+  ownership enforcement is server-side on the mutating endpoints — this filtering is just
+  about what to show).
+- `pages/admin/HolidaysAdminPage.tsx` — add/remove one-off closed dates.
+- `pages/admin/HoursAdminPage.tsx` — per-resource working hours + weekly closed-day checkboxes.
+- Nav bar shows an "Admin" link only when `user.role === "ADMIN"` (STAFF users don't see a
+  link to a page they'd immediately be denied).
+- **Interview angle:** when to introduce a shared abstraction (rule of three — two duplicates
+  tolerated, a third triggers the refactor), 401 vs 403 as distinct UI states, nested routes
+  with `<Outlet/>`, client-side filtering vs server-side authorization.
+
+### Post-Phase 5 addition — Resource creation ✅ DONE
+The last gap: there was no way to add a second doctor/stylist/chair without hand-editing
+`prisma/seed.ts` and re-seeding. `resources.ts` only ever had `GET`/`PATCH`.
+- `POST /api/resources` — ADMIN only, same "trust the token's `businessId`, never the body"
+  pattern as every other create endpoint. Omitted `workingHoursStart`/`workingHoursEnd`/
+  `closedWeekdays` fall back to the schema's own `@default` values instead of writing explicit
+  nulls — passing `undefined` (not omitting the key) is what makes Prisma apply its defaults.
+- Frontend: `pages/admin/ResourcesAdminPage.tsx` — a new first tab on `/admin` (name-only
+  create form + a read-only list of existing resources with their hours/closed days).
+  Deliberately kept separate from the Hours tab, which still owns *editing* an existing
+  resource's hours — same create-vs-edit split as the backend's POST vs PATCH.
+- Postman: "Add Resource (Admin)" + a 403 test for staff attempting one.
+- **Interview angle:** letting a default value defined once in the schema (`@default("09:00")`)
+  stay the single source of truth instead of duplicating it in application code — passing
+  `undefined` for an omitted field vs `null` for "explicitly no value" is a subtle but real
+  distinction in Prisma (and SQL `DEFAULT` in general).
+
 ### Phase 6 — AWS deployment
 - EC2 for the API, RDS for Postgres.
 - S3 for storing generated QR images.

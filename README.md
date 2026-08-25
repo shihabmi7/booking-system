@@ -61,6 +61,23 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   now wrapped in `RequireAuth`; both pages send `Authorization: Bearer <token>` on every
   request and log the user out automatically on a `401`. Nav bar shows a login link when
   logged out, or the current user's email/role + a logout button when logged in.
+- **Service management endpoints (post-Phase 5 addition, backend):** `POST/PATCH/DELETE /api/services`
+  were missing entirely — services could only ever be seeded, never created or edited through
+  the API. Now ADMIN-only, same ownership-check pattern as holidays/resources (looked up via
+  the service's resource, since `Service` has no `businessId` of its own). `GET /api/services`
+  stays public. Also fixed a real type error in `signToken` surfaced once `@types/jsonwebtoken`
+  was actually installed.
+- **Admin settings UI (post-Phase 5 addition, frontend):** `/admin/services`, `/admin/holidays`,
+  `/admin/hours` — the screens that finally use the endpoints above and the existing
+  holidays/resources endpoints, gated to the ADMIN role specifically (not just "logged in").
+  Introduced `auth/useAuthFetch.ts`, a shared fetch-with-auth-header-and-401-handling hook, and
+  refactored `CheckInPage`/`QueuePage` to use it instead of repeating that logic a third and
+  fourth time.
+- **Resource creation (post-Phase 5 addition):** `POST /api/resources` was the last missing
+  piece — there was previously no way to add a second doctor/stylist/chair without editing the
+  seed script. ADMIN only, same pattern as services/holidays. New `/admin/resources` tab (name
+  + a list of existing resources); editing an existing resource's hours still happens on the
+  `/admin/hours` tab.
 
 ### What's next — Phase 6: AWS deployment
 - EC2 for the API, RDS for Postgres, S3 for QR images, SES for confirmation emails.
@@ -98,6 +115,7 @@ Backend runs on http://localhost:4000. Check it directly:
 - http://localhost:4000/api/slots?resourceId=...&serviceId=...&date=2026-08-25 (grab real IDs from `/api/services` first)
 - `/api/resources`, `/api/holidays`, `/api/queue` now require a login — use the Postman
   collection's "0. Auth" folder to get a token, then send it as `Authorization: Bearer <token>`.
+- Creating/editing services (`POST/PATCH/DELETE /api/services`) requires an ADMIN token specifically.
 
 ## 3. Run the frontend
 ```
@@ -118,11 +136,11 @@ booking-system/
 │   ├── prisma/seed.ts         # sample data + sample admin/staff logins
 │   ├── src/index.ts           # Express app entrypoint
 │   ├── src/routes/health.ts   # GET /api/health
-│   ├── src/routes/services.ts # GET /api/services
+│   ├── src/routes/services.ts # GET /api/services (public), POST/PATCH/DELETE (admin)
 │   ├── src/routes/slots.ts    # GET /api/slots
 │   ├── src/routes/bookings.ts # POST /api/bookings, GET .../:bookingRef, POST .../checkin|no-show|complete
 │   ├── src/routes/holidays.ts # GET/POST /api/holidays, DELETE /api/holidays/:id
-│   ├── src/routes/resources.ts # GET /api/resources, PATCH /api/resources/:id
+│   ├── src/routes/resources.ts # GET/POST /api/resources, PATCH /api/resources/:id
 │   ├── src/routes/queue.ts    # GET /api/queue — staff "who's here/next" view
 │   ├── src/routes/auth.ts     # POST /api/auth/login, GET .../me, POST/GET .../users
 │   ├── src/services/slotGenerator.ts # pure function: working hours -> candidate slots
@@ -138,7 +156,9 @@ booking-system/
     ├── src/App.tsx             # Layout shell + routes (nav bar, <Routes>)
     ├── src/main.tsx            # React entrypoint, wraps App in BrowserRouter + AuthProvider
     ├── src/auth/AuthContext.tsx # login/logout, token+user persisted to localStorage
-    ├── src/auth/RequireAuth.tsx # route guard — redirects to /login if logged out
+    ├── src/auth/RequireAuth.tsx # route guard — redirects to /login if logged out, or shows
+    │                            #   "access denied" if logged in with the wrong role
+    ├── src/auth/useAuthFetch.ts # shared fetch wrapper: attaches token, logs out on 401
     ├── src/pages/LoginPage.tsx # "/login" — staff/admin login form
     ├── src/pages/HomePage.tsx  # "/" — health check
     ├── src/pages/ServicesPage.tsx # "/services" — real seeded data from GET /api/services
@@ -146,7 +166,13 @@ booking-system/
     ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form
     ├── src/pages/BookingDetailsPage.tsx # "/bookings/:bookingRef" — booking details + QR
     ├── src/pages/CheckInPage.tsx        # "/checkin" — staff manual check-in form (auth required)
-    └── src/pages/QueuePage.tsx          # "/queue" — staff day view with action buttons (auth required)
+    ├── src/pages/QueuePage.tsx          # "/queue" — staff day view with action buttons (auth required)
+    └── src/pages/admin/
+        ├── AdminLayout.tsx      # "/admin" shell — Resources/Services/Holidays/Hours sub-nav + <Outlet/>
+        ├── ResourcesAdminPage.tsx # "/admin/resources" — create a new resource (admin only)
+        ├── ServicesAdminPage.tsx # "/admin/services" — add/edit/delete services (admin only)
+        ├── HolidaysAdminPage.tsx # "/admin/holidays" — add/remove one-off closed dates
+        └── HoursAdminPage.tsx    # "/admin/hours" — per-resource working hours + closed weekdays
 ```
 
 ## Next steps

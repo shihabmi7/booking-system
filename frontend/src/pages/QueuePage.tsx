@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "../auth/AuthContext";
+import { useAuthFetch } from "../auth/useAuthFetch";
 
 type Resource = {
   id: string;
@@ -20,7 +20,7 @@ type QueueEntry = {
 // with inline actions to move each booking through the state machine (check in / no-show /
 // complete) without leaving the page.
 export default function QueuePage() {
-  const { token, logout } = useAuth();
+  const authFetch = useAuthFetch();
   const [resources, setResources] = useState<Resource[] | null>(null);
   const [resourceId, setResourceId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -29,18 +29,9 @@ export default function QueuePage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Every request on this page is staff-only, so every fetch here needs this header.
-  const authHeaders = { Authorization: `Bearer ${token}` };
-
   useEffect(() => {
-    fetch("/api/resources", { headers: authHeaders })
-      .then((res) => {
-        if (res.status === 401) {
-          logout();
-          throw new Error("Your session expired. Please log in again.");
-        }
-        return res.json();
-      })
+    authFetch("/api/resources")
+      .then((res) => res.json())
       .then((data: Resource[]) => {
         setResources(data);
         if (data.length > 0) setResourceId(data[0].id);
@@ -52,14 +43,8 @@ export default function QueuePage() {
   function refreshQueue() {
     if (!resourceId) return;
     const params = new URLSearchParams({ resourceId, date });
-    fetch(`/api/queue?${params}`, { headers: authHeaders })
-      .then((res) => {
-        if (res.status === 401) {
-          logout();
-          throw new Error("Your session expired. Please log in again.");
-        }
-        return res.json();
-      })
+    authFetch(`/api/queue?${params}`)
+      .then((res) => res.json())
       .then(setQueue)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load queue"));
   }
@@ -69,15 +54,11 @@ export default function QueuePage() {
   async function runAction(bookingRef: string, action: "checkin" | "no-show" | "complete") {
     setActionError(null);
     try {
-      const res = await fetch(`/api/bookings/${bookingRef}/${action}`, {
+      const res = await authFetch(`/api/bookings/${bookingRef}/${action}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: { "Content-Type": "application/json" },
         body: action === "checkin" ? JSON.stringify({ method: "manual" }) : undefined,
       });
-      if (res.status === 401) {
-        logout();
-        throw new Error("Your session expired. Please log in again.");
-      }
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
       refreshQueue();

@@ -334,4 +334,65 @@ without that middleware genuinely don't have it, which is also why route handler
 
 ---
 
-## Phase 5 — (frontend not started yet)
+## Post-Phase 5 addition — Service management endpoints
+
+**Q: `Service` doesn't have its own `businessId` column, unlike `Holiday` or `Resource`. How do you check ownership for `POST /api/services` without one?**
+A: Go through the relation instead of a direct column. The request body includes a
+`resourceId`, so the handler fetches that `Resource` first and compares *its* `businessId`
+against `req.user.businessId` — if they don't match, `403`, before any service ever gets
+created. It's the same ownership principle as everywhere else in the app (a role check alone
+isn't authorization, the record has to actually belong to the caller), just applied one hop
+away because the schema doesn't duplicate `businessId` onto every table that's transitively
+scoped to a business through a parent relation.
+
+**Q: Why does `DELETE /api/services/:id` catch a specific Prisma error code (`P2003`) instead of just letting the delete happen?**
+A: `Service` has a `bookings Booking[]` relation — if any booking still references that
+service, the database's foreign key constraint blocks the delete outright rather than leaving
+a `Booking` row pointing at a service that no longer exists (an orphaned/dangling reference,
+which would corrupt data integrity). Prisma surfaces that as error code `P2003` (foreign key
+constraint violation). Without catching it, the client would just see a raw `500`, which looks
+like a server bug rather than what it actually is: "you can't delete this, something depends
+on it." Catching `P2003` and returning a `409 Conflict` with a clear message turns an expected,
+recoverable situation into a proper API response instead of an unhandled crash — the same
+pattern already used for `P2002` (unique constraint) elsewhere in `bookings.ts`/`holidays.ts`.
+
+**Q: The `signToken` function needed a type cast (`as jwt.SignOptions["expiresIn"]`) once `@types/jsonwebtoken` was actually installed, even though the code "worked" before. What does that reveal about relying on `npm install` output alone?**
+A: Before the real install, `bcryptjs`/`jsonwebtoken` were missing entirely, so TypeScript
+couldn't check `signToken`'s body at all — it just reported "module not found" and stopped
+there, which *hides* any deeper type errors inside code that imports a missing module. Once
+the real package (and its `@types` definitions) were installed, TypeScript could finally
+type-check the actual call, and found that `expiresIn` expects a narrow template-literal type
+(`"8h"`, `"30m"`, specific formats only), not a plain `string` — which is what reading
+`process.env.JWT_EXPIRES_IN` produces. The lesson: "no errors" from `tsc` isn't meaningful if
+a missing dependency is silently short-circuiting the check for everything that imports it —
+always re-run the type checker after a fresh `npm install`, not just after writing new code.
+
+---
+
+## Post-Phase 5 addition — Resource creation
+
+**Q: `POST /api/resources` accepts `workingHoursStart`, `workingHoursEnd`, and `closedWeekdays` as optional, and falls back to `undefined` (not a literal value) when they're missing. Why does that specific fallback matter?**
+A: `Resource.workingHoursStart` in `schema.prisma` has `@default("09:00")` — a default defined
+once, at the database/schema level. Passing `workingHoursStart: undefined` to
+`prisma.resource.create()` tells Prisma "no value provided for this field," which lets that
+`@default` kick in. Passing `workingHoursStart: null` or an empty string instead would be an
+*explicit* value overriding the default — and since the column isn't nullable, `null` would
+actually throw a database error. The fallback pattern `workingHoursStart || undefined` matters
+because it's the difference between "let the schema's single source of truth decide" and
+"silently write a wrong value" — this is a general Prisma/SQL `DEFAULT` gotcha, not specific to
+this field.
+
+**Q: Why does creating a resource live on its own tab (`/admin/resources`) instead of just being a "new resource" row at the top of the Hours tab, which already lists every resource?**
+A: They're different operations with different backend endpoints (`POST` vs `PATCH`) and
+different concerns — creating asks "what's this resource called," editing asks "what are this
+resource's hours." Merging them into one screen would mean one form doing double duty:
+sometimes creating with mostly-default values, sometimes updating an existing row's hours,
+with the UI having to guess which mode it's in. Keeping them separate mirrors the backend split
+exactly, and each page stays simpler for it — the same reasoning used earlier for why
+`ServicesAdminPage`'s add-form and edit-row are visually different (inline edit vs a form) even
+though they're on the same page there, just at a coarser grain here (separate tabs instead of
+separate UI within one tab).
+
+---
+
+## Phase 6 — (not started yet)

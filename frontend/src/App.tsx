@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import ServicesPage from "./pages/ServicesPage";
 import BookPage from "./pages/BookPage";
@@ -7,6 +7,11 @@ import BookingDetailsPage from "./pages/BookingDetailsPage";
 import CheckInPage from "./pages/CheckInPage";
 import QueuePage from "./pages/QueuePage";
 import LoginPage from "./pages/LoginPage";
+import AdminLayout from "./pages/admin/AdminLayout";
+import ResourcesAdminPage from "./pages/admin/ResourcesAdminPage";
+import ServicesAdminPage from "./pages/admin/ServicesAdminPage";
+import HolidaysAdminPage from "./pages/admin/HolidaysAdminPage";
+import HoursAdminPage from "./pages/admin/HoursAdminPage";
 import RequireAuth from "./auth/RequireAuth";
 import { useAuth } from "./auth/AuthContext";
 
@@ -44,6 +49,13 @@ export default function App() {
         <NavLink to="/queue" style={linkStyle}>
           Queue
         </NavLink>
+        {/* Unlike Check-in/Queue, Admin is only shown to ADMIN users at all — a STAFF user
+            clicking a visible-but-forbidden link is a worse experience than not seeing it. */}
+        {user?.role === "ADMIN" && (
+          <NavLink to="/admin/resources" style={linkStyle}>
+            Admin
+          </NavLink>
+        )}
 
         <span style={{ marginLeft: "auto", fontSize: "0.9rem" }}>
           {user ? (
@@ -84,6 +96,20 @@ export default function App() {
             </RequireAuth>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth role="ADMIN">
+              <AdminLayout />
+            </RequireAuth>
+          }
+        >
+          <Route index element={<Navigate to="resources" replace />} />
+          <Route path="resources" element={<ResourcesAdminPage />} />
+          <Route path="services" element={<ServicesAdminPage />} />
+          <Route path="holidays" element={<HolidaysAdminPage />} />
+          <Route path="hours" element={<HoursAdminPage />} />
+        </Route>
       </Routes>
     </main>
   );

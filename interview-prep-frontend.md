@@ -225,4 +225,58 @@ collection) already expects by convention, so there's no reason to invent a nons
 
 ---
 
+## Post-Phase 5 addition — Admin settings UI
+
+**Q: `CheckInPage` and `QueuePage` were flagged in the Phase 5 notes as "worth refactoring once a third page needs the same fetch logic." Why wait instead of extracting `useAuthFetch` immediately?**
+A: This is the "rule of three" — two instances of near-identical code are often just coincidence
+or too early to know the right shape of the abstraction; a third instance is what confirms it's
+actually a pattern worth naming. Extracting `useAuthFetch` after only one page existed would have
+been guessing at an interface with no second data point to validate it against. Once the admin
+pages needed the exact same "attach token, log out on 401" logic for a third and fourth time, the
+duplication was clearly a pattern, and the hook's shape (a single wrapped `fetch` function) fell
+out naturally from what all four call sites actually needed.
+
+**Q: Why does `RequireAuth`'s new `role` prop redirect to `/login` in one case but render an inline message in the other, instead of handling "not allowed" the same way every time?**
+A: They're different problems for the user to fix. No `user` at all means "you're not
+authenticated" — redirecting to `/login` is directly actionable, logging in solves it. A `user`
+that exists but has the wrong role (a STAFF account hitting `/admin`) means "you're authenticated,
+but this account specifically isn't allowed here" — sending that user to `/login` would be
+actively misleading, since logging in again with the same account changes nothing. This mirrors
+the backend's own 401-vs-403 distinction (`requireAuth` vs `requireRole`) — the frontend
+shouldn't collapse two different failure modes into one generic "access denied" if it already
+knows which one actually happened.
+
+**Q: `ServicesAdminPage` calls the public `GET /api/services` (which returns every business's services) and filters client-side to the admin's own resources. Isn't that a security hole?**
+A: No, because filtering here is a display decision, not an authorization boundary. The actual
+security is enforced entirely server-side: `POST/PATCH/DELETE /api/services` each independently
+check that the target resource's `businessId` matches `req.user.businessId` and return
+403/404 otherwise — that check happens regardless of what the frontend does or doesn't show.
+If the client-side filter had a bug and displayed another business's service in the admin's
+table, clicking "Edit" and saving would still get rejected by the backend. This is a useful
+distinction to name explicitly: never rely on the frontend hiding something as the actual
+security measure — hide it for a clean UI, but the API must reject it independently.
+
+**Q: `AdminLayout` uses nested routes (`<Route path="/admin" element={<AdminLayout/>}><Route path="services" .../></Route>`) with an `<Outlet/>`, instead of three separate top-level routes that each render their own copy of the tab navigation. Why?**
+A: The tab nav (Services/Holidays/Hours) is shared UI that shouldn't be duplicated three times
+or re-fetched/re-mounted on every tab switch. `<Outlet/>` is React Router's placeholder for
+"render whichever child route matched" inside a parent route's own element — `AdminLayout`
+renders the nav once, and only the `<Outlet/>` content swaps out as the user clicks between
+tabs, the same relationship `App.tsx` itself has with all of its top-level pages. It also means
+the `RequireAuth role="ADMIN"` check only needs to wrap the parent route once, instead of being
+repeated on `/admin/services`, `/admin/holidays`, and `/admin/hours` separately.
+
+---
+
+## Post-Phase 5 addition — Resource creation
+
+**Q: `ResourcesAdminPage` only collects a `name` in its form, even though the backend's `POST /api/resources` also accepts `workingHoursStart`/`workingHoursEnd`/`closedWeekdays`. Why not expose all of it in one form?**
+A: Because the Hours tab already owns editing that data for an existing resource, and a brand
+new resource with no bookings yet doesn't need custom hours on day one — the schema's defaults
+(9:00-17:00, no closed days) are a reasonable starting point for any resource. Asking for name
+only keeps the "create" step to the one piece of information that's actually required and has
+no sensible default, then routing the rest through an existing, already-tested screen (Hours)
+instead of duplicating that form's fields and validation a second time.
+
+---
+
 ## Phase 6 — (not started yet)

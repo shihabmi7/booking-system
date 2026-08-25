@@ -19,6 +19,44 @@ router.get("/", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async 
   res.json(resources);
 });
 
+// POST /api/resources — create a new resource (doctor/stylist/chair) for the admin's own
+// business. ADMIN only. businessId is never read from the body — always req.user.businessId,
+// same reasoning as every other create endpoint in this app (holidays, services): trusting a
+// client-supplied businessId would let an admin attach a resource to a different business.
+router.post("/", requireAuth, requireRole(UserRole.ADMIN), async (req, res) => {
+  const { name, workingHoursStart, workingHoursEnd, closedWeekdays } = req.body;
+
+  if (!name || typeof name !== "string" || !name.trim()) {
+    return res.status(400).json({ error: "name is required" });
+  }
+  if (workingHoursStart !== undefined && !/^\d{2}:\d{2}$/.test(workingHoursStart)) {
+    return res.status(400).json({ error: "workingHoursStart must be in HH:MM format" });
+  }
+  if (workingHoursEnd !== undefined && !/^\d{2}:\d{2}$/.test(workingHoursEnd)) {
+    return res.status(400).json({ error: "workingHoursEnd must be in HH:MM format" });
+  }
+  if (
+    closedWeekdays !== undefined &&
+    (!Array.isArray(closedWeekdays) || !closedWeekdays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6))
+  ) {
+    return res.status(400).json({ error: "closedWeekdays must be an array of integers 0-6 (0 = Sunday)" });
+  }
+
+  const resource = await prisma.resource.create({
+    data: {
+      name: name.trim(),
+      businessId: req.user!.businessId,
+      // Falling back to `undefined` (not omitting the key) lets Prisma apply the schema's
+      // own @default values (09:00/17:00/[]) instead of writing an explicit null/empty value —
+      // same fallback style used throughout this file's validation.
+      workingHoursStart: workingHoursStart || undefined,
+      workingHoursEnd: workingHoursEnd || undefined,
+      closedWeekdays: closedWeekdays || undefined,
+    },
+  });
+  res.status(201).json(resource);
+});
+
 // PATCH /api/resources/:id — update working hours and/or weekly closed days. ADMIN only —
 // changing business hours is a bigger deal than the read-only GET above, which any staff
 // member can do. Only the fields provided in the body are changed; omitted fields are left as-is.

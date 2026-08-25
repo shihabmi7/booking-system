@@ -13,6 +13,8 @@
     { "key": "adminToken", "value": "" },
     { "key": "staffToken", "value": "" },
     { "key": "newStaffEmail", "value": "" },
+    { "key": "newServiceId", "value": "" },
+    { "key": "newResourceId", "value": "" },
     { "key": "resourceId", "value": "" },
     { "key": "serviceId", "value": "" },
     { "key": "date", "value": "2026-08-25" },
@@ -294,6 +296,160 @@
                   "  pm.collectionVariables.set('businessId', resources[0].businessId);",
                   "}"
                 ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Resource (Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/resources",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Resource\"\n}"
+            },
+            "description": "ADMIN only. Creates a new resource under the admin's own business — businessId comes from the token, never the body. Omitted working hours fall back to the schema's own defaults (09:00-17:00, no closed days). Auto-saves the created id as newResourceId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const resource = pm.response.json();",
+                  "pm.test('Defaults applied', () => pm.expect(resource.workingHoursStart).to.eql('09:00'));",
+                  "pm.collectionVariables.set('newResourceId', resource.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Resource as Staff (expect 403)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/resources",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Should be rejected\"\n}"
+            },
+            "description": "Same endpoint, STAFF token instead of ADMIN — creating a resource is ADMIN-only, same as services and holidays."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 403 Forbidden', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Service (Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/services",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"name\": \"Postman Test Service\",\n  \"durationMins\": 10,\n  \"price\": 250\n}"
+            },
+            "description": "ADMIN only. Attaches a new service to one of the admin's own resources — resourceId must belong to the admin's business, or this returns 403. Auto-saves the created service's id as newServiceId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('newServiceId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Service as Staff (expect 403)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/services",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"name\": \"Should be rejected\",\n  \"durationMins\": 10,\n  \"price\": 100\n}"
+            },
+            "description": "Same endpoint, STAFF token instead of ADMIN — managing the service catalog is ADMIN-only, same as holidays and resource hours."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 403 Forbidden', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Service (Admin)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/services/{{newServiceId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 275\n}"
+            },
+            "description": "ADMIN only. Only fields included in the body are changed — this updates just the price of the service created above."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Price updated', () => pm.expect(pm.response.json().price).to.eql('275'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Service (Admin)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/services/{{newServiceId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "description": "ADMIN only. Cleans up the service created by 'Add Service (Admin)' — succeeds because it has no bookings against it. Deleting a service that already has bookings would instead return 409 (see services.ts's P2003 handling)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 204', () => pm.response.to.have.status(204));"]
               }
             }
           ]
