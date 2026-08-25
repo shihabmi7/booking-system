@@ -5,7 +5,7 @@ wired together with a health-check call so you can confirm both apps and the dat
 
 See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
 
-## Current status: Phase 1 ✅ done. Phase 2 ✅ done. Phase 3 ✅ done. Phase 4 ✅ done. Starting Phase 5.
+## Current status: Phases 1-5 ✅ done. Starting Phase 6 (AWS deployment).
 
 ### What's done so far
 - **Phase 1:** Backend (Express+TS) and frontend (React+TS/Vite) scaffolded and wired end-to-end
@@ -45,11 +45,26 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   granted `booking_user` `CREATEDB` so Prisma's shadow database could be created, recovered from
   an accidental empty GitHub Desktop repo that shadowed the real one, and fixed a duplicate-data
   bug caused by re-running the (previously non-idempotent) seed script.
+- **Phase 5 (backend):** New `User` model (email, bcrypt `passwordHash`, STAFF/ADMIN role, scoped
+  to a `businessId`) — no public signup, accounts come from an ADMIN or the seed script.
+  `services/auth.ts` (password hashing + JWT sign/verify) and `middleware/auth.ts`
+  (`requireAuth`, `requireRole(...roles)`). New routes: `POST /api/auth/login` (public),
+  `GET /api/auth/me`, `POST /api/auth/users` + `GET /api/auth/users` (ADMIN only). Every
+  staff-facing endpoint from earlier phases (`resources`, `holidays`, `queue`, and the booking
+  `checkin`/`no-show`/`complete` transitions) now requires login plus an ownership check tying
+  the record's `businessId` to the logged-in user's own business. Customer-facing endpoints
+  (`bookings` create/lookup, `slots`, `services`) stay public — customers never log in. Seed
+  script now creates two sample logins for testing (see Prerequisites below).
+- **Phase 5 (frontend):** `auth/AuthContext.tsx` — React context holding `{ token, user }`,
+  persisted to `localStorage`. `auth/RequireAuth.tsx` — route guard, redirects to `/login` if
+  logged out. `pages/LoginPage.tsx` — email/password form. `/checkin` and `/queue` routes are
+  now wrapped in `RequireAuth`; both pages send `Authorization: Bearer <token>` on every
+  request and log the user out automatically on a `401`. Nav bar shows a login link when
+  logged out, or the current user's email/role + a logout button when logged in.
 
-### What's next — Phase 5: Auth & roles
-- JWT-based auth for staff/admin.
-- Gate the currently-open holiday/hours/check-in/queue endpoints behind it.
-- Role-based access (admin vs staff).
+### What's next — Phase 6: AWS deployment
+- EC2 for the API, RDS for Postgres, S3 for QR images, SES for confirmation emails.
+- Lambda + EventBridge for a scheduled no-show sweep.
 
 ## Prerequisites
 - Node.js 18+ and npm
@@ -66,19 +81,23 @@ This starts Postgres on `localhost:5432` with user `booking_user` / password `bo
 cd backend
 cp .env.example .env
 npm install
-npx prisma migrate dev --name add_holidays_and_closed_weekdays
+npx prisma migrate dev --name add_users_auth
 npm run seed
 npm run dev
 ```
 `npm install` also generates the Prisma Client automatically. `prisma migrate dev` creates/updates the
-tables in Postgres from `schema.prisma` (re-run it whenever the schema changes). `npm run seed` inserts
-one sample business/resource/services, plus a Friday weekly closure and one sample holiday.
+tables in Postgres from `schema.prisma` (re-run it whenever the schema changes — this one adds the new
+`User` table for Phase 5). `npm run seed` inserts one sample business/resource/services, a Friday weekly
+closure, one sample holiday, and two sample logins for testing:
+- **Admin:** `admin@sunriseclinic.test` / `AdminPass123!`
+- **Staff:** `staff@sunriseclinic.test` / `StaffPass123!`
 
 Backend runs on http://localhost:4000. Check it directly:
 - http://localhost:4000/api/health
 - http://localhost:4000/api/services
 - http://localhost:4000/api/slots?resourceId=...&serviceId=...&date=2026-08-25 (grab real IDs from `/api/services` first)
-- http://localhost:4000/api/holidays?businessId=... (grab a businessId from `/api/resources`)
+- `/api/resources`, `/api/holidays`, `/api/queue` now require a login — use the Postman
+  collection's "0. Auth" folder to get a token, then send it as `Authorization: Bearer <token>`.
 
 ## 3. Run the frontend
 ```
@@ -95,8 +114,8 @@ and server time. If you see "Backend not reachable," make sure the backend is ru
 booking-system/
 ├── docker-compose.yml         # Postgres for local dev
 ├── backend/
-│   ├── prisma/schema.prisma   # Business/Resource/Service/Booking models
-│   ├── prisma/seed.ts         # sample data
+│   ├── prisma/schema.prisma   # Business/Resource/Service/Booking/User models
+│   ├── prisma/seed.ts         # sample data + sample admin/staff logins
 │   ├── src/index.ts           # Express app entrypoint
 │   ├── src/routes/health.ts   # GET /api/health
 │   ├── src/routes/services.ts # GET /api/services
@@ -105,24 +124,32 @@ booking-system/
 │   ├── src/routes/holidays.ts # GET/POST /api/holidays, DELETE /api/holidays/:id
 │   ├── src/routes/resources.ts # GET /api/resources, PATCH /api/resources/:id
 │   ├── src/routes/queue.ts    # GET /api/queue — staff "who's here/next" view
+│   ├── src/routes/auth.ts     # POST /api/auth/login, GET .../me, POST/GET .../users
 │   ├── src/services/slotGenerator.ts # pure function: working hours -> candidate slots
 │   ├── src/services/availability.ts  # candidates minus bookings minus holidays/closed days
 │   ├── src/services/qrCode.ts # generates a QR data URL from a bookingRef
 │   ├── src/services/bookingStateMachine.ts # allowed BookingStatus transitions
+│   ├── src/services/auth.ts   # password hashing (bcrypt) + JWT sign/verify
+│   ├── src/middleware/auth.ts # requireAuth, requireRole(...roles) middleware
+│   ├── src/types/express.d.ts # adds req.user to Express's Request type
 │   └── src/db/prisma.ts       # shared Prisma Client instance
 ├── postman/booking-system.postman_collection.json # importable API test collection
 └── frontend/
     ├── src/App.tsx             # Layout shell + routes (nav bar, <Routes>)
-    ├── src/main.tsx            # React entrypoint, wraps App in BrowserRouter
+    ├── src/main.tsx            # React entrypoint, wraps App in BrowserRouter + AuthProvider
+    ├── src/auth/AuthContext.tsx # login/logout, token+user persisted to localStorage
+    ├── src/auth/RequireAuth.tsx # route guard — redirects to /login if logged out
+    ├── src/pages/LoginPage.tsx # "/login" — staff/admin login form
     ├── src/pages/HomePage.tsx  # "/" — health check
     ├── src/pages/ServicesPage.tsx # "/services" — real seeded data from GET /api/services
     ├── src/pages/BookPage.tsx  # "/book" — the booking wizard
     ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form
     ├── src/pages/BookingDetailsPage.tsx # "/bookings/:bookingRef" — booking details + QR
-    ├── src/pages/CheckInPage.tsx        # "/checkin" — staff manual check-in form
-    └── src/pages/QueuePage.tsx          # "/queue" — staff day view with action buttons
+    ├── src/pages/CheckInPage.tsx        # "/checkin" — staff manual check-in form (auth required)
+    └── src/pages/QueuePage.tsx          # "/queue" — staff day view with action buttons (auth required)
 ```
 
 ## Next steps
-Phase 5: JWT auth for staff/admin, then gate the currently-open admin-style endpoints
-behind it. Full plan in the roadmap doc.
+Phase 6: AWS deployment — EC2 for the API, RDS for Postgres, S3 for QR images, SES for
+confirmation emails, Lambda + EventBridge for a scheduled no-show sweep. Full plan in the
+roadmap doc.

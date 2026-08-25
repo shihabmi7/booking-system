@@ -167,4 +167,62 @@ when the UI actually does something different in response.
 
 ---
 
-## Phase 5 — (not started yet)
+## Phase 5 — Auth & roles
+
+**Q: Why use React context (`AuthContext`) for the logged-in user instead of just keeping `token`/`user` as state in `App.tsx` and passing them down as props?**
+A: Auth is needed in components at very different depths of the tree — the nav bar (top-level,
+to show login/logout), `RequireAuth` (wraps individual routes), and `QueuePage`/`CheckInPage`
+(deep inside a specific page) all need the current token. Passing it as props would mean every
+intermediate component (`App` → `Routes` → the page) has to accept and forward `token`/`user`
+even if it never uses them itself — "prop drilling." Context lets any descendant call `useAuth()`
+directly and read the current value, regardless of how deep it is, without every layer in between
+needing to know auth exists.
+
+**Q: `AuthContext` reads from `localStorage` inside `useState(loadStoredAuth)` instead of an empty
+initial value plus a `useEffect`. Why?**
+A: `useState(loadStoredAuth)` — passing a function instead of a value — makes React call it exactly
+once, synchronously, on the component's first render, and use the result as the initial state.
+Doing it as a `useEffect` instead would mean the component first renders with `token: null` (looking
+logged-out for a frame), then the effect runs and sets the real state, causing a visible flash —
+briefly showing "Staff Login" in the nav bar before flipping to the logged-in view even though the
+user was already logged in. Reading `localStorage` synchronously during the initial state
+computation avoids that flash entirely.
+
+**Q: What does `RequireAuth` actually protect — is `/api/queue` still safe if someone bypasses it?**
+A: `RequireAuth` only protects the *frontend experience* — it stops the browser from rendering
+`QueuePage` and firing its fetch calls if there's no token, giving a clean redirect instead of a
+page full of failed-request errors. It provides zero real security by itself: someone could still
+call `curl http://localhost:4000/api/queue` directly with no token at all, bypassing the React app
+entirely. The actual security is `requireAuth`/`requireRole` on the *backend* routes (see the
+backend interview-prep notes) — those reject the request regardless of what UI (if any) made it.
+This is a common interview point: client-side route guards are a UX nicety, never a substitute for
+server-side authorization.
+
+**Q: Why does `RequireAuth` pass `state={{ from: location.pathname }}` to `<Navigate>` instead of just always redirecting to `/queue` after login?**
+A: Without it, a user who bookmarked `/checkin` directly, got redirected to `/login`, and logged in
+would land on `/queue` instead of the page they actually wanted — a small but annoying UX gap.
+`useLocation()` reads the current path before redirecting, and `<Navigate state={...}>` carries it
+along as router state (not a URL query param, so it's invisible and doesn't get bookmarked/shared).
+`LoginPage` then reads `location.state?.from` after a successful login and navigates there instead
+of a hardcoded default.
+
+**Q: `CheckInPage` and `QueuePage` each check for a `401` response and call `logout()` manually. Why isn't that handled in one shared place, like a fetch wrapper?**
+A: It could be — a shared `authFetch()` helper that automatically attaches the header and handles
+401s is a reasonable refactor once more than two pages need it, and is exactly the kind of thing
+worth mentioning as a "next improvement" in an interview. It wasn't done yet here mainly to keep
+each page's data flow explicit and easy to trace while still learning the pattern; the duplication
+between two pages is small enough to tolerate for now, but would become a real maintenance problem
+if a third or fourth staff-facing page needed the same logic.
+
+**Q: The token is sent as `Authorization: Bearer <token>` on each request instead of, say, a custom header or a query param. Why that specific format?**
+A: `Authorization: Bearer <token>` is the standard convention for token-based auth (defined in
+RFC 6750) — the backend's `requireAuth` middleware expects exactly this format
+(`req.headers.authorization?.split(" ")`). Using a query param instead would leak the token into
+server logs, browser history, and the `Referer` header of any outgoing links from that page —
+tokens should never appear in a URL. A custom header would work technically, but `Authorization:
+Bearer` is what every HTTP client, proxy, and API testing tool (including this project's Postman
+collection) already expects by convention, so there's no reason to invent a nonstandard one.
+
+---
+
+## Phase 6 — (not started yet)

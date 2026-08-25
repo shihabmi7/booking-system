@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { Prisma } from "@prisma/client";
+import { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { getAvailableSlots } from "../services/availability";
 import { generateBookingQrCode } from "../services/qrCode";
 import { canTransition } from "../services/bookingStateMachine";
+import { requireAuth, requireRole } from "../middleware/auth";
 
 const router = Router();
 
@@ -110,10 +111,19 @@ router.get("/:bookingRef", async (req, res) => {
 });
 
 // POST /api/bookings/:bookingRef/checkin — the QR scan (or manual booking-ref entry) endpoint.
-// Body: { method?: "qr" | "manual" }
-router.post("/:bookingRef/checkin", async (req, res) => {
-  const booking = await prisma.booking.findUnique({ where: { bookingRef: req.params.bookingRef } });
+// Body: { method?: "qr" | "manual" }. Staff/admin only — a customer's own possession of the
+// bookingRef is enough to VIEW a booking (GET above), but not enough to change its state;
+// otherwise anyone with the QR code (which is meant to be shown to staff) could check
+// themselves in from home.
+router.post("/:bookingRef/checkin", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async (req, res) => {
+  const booking = await prisma.booking.findUnique({
+    where: { bookingRef: req.params.bookingRef },
+    include: { resource: { select: { businessId: true } } },
+  });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.resource.businessId !== req.user!.businessId) {
+    return res.status(403).json({ error: "You don't have access to this booking" });
+  }
 
   if (!canTransition(booking.status, "CHECKED_IN")) {
     return res
@@ -136,9 +146,15 @@ router.post("/:bookingRef/checkin", async (req, res) => {
 // POST /api/bookings/:bookingRef/no-show — staff manually marks a booking as a no-show
 // (e.g. after waiting past the grace period with no check-in). An automated version of this
 // — a scheduled sweep that runs without a human clicking anything — is Phase 6 (Lambda + EventBridge).
-router.post("/:bookingRef/no-show", async (req, res) => {
-  const booking = await prisma.booking.findUnique({ where: { bookingRef: req.params.bookingRef } });
+router.post("/:bookingRef/no-show", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async (req, res) => {
+  const booking = await prisma.booking.findUnique({
+    where: { bookingRef: req.params.bookingRef },
+    include: { resource: { select: { businessId: true } } },
+  });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.resource.businessId !== req.user!.businessId) {
+    return res.status(403).json({ error: "You don't have access to this booking" });
+  }
 
   if (!canTransition(booking.status, "NO_SHOW")) {
     return res
@@ -154,9 +170,15 @@ router.post("/:bookingRef/no-show", async (req, res) => {
 });
 
 // POST /api/bookings/:bookingRef/complete — staff marks a checked-in visit as finished.
-router.post("/:bookingRef/complete", async (req, res) => {
-  const booking = await prisma.booking.findUnique({ where: { bookingRef: req.params.bookingRef } });
+router.post("/:bookingRef/complete", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async (req, res) => {
+  const booking = await prisma.booking.findUnique({
+    where: { bookingRef: req.params.bookingRef },
+    include: { resource: { select: { businessId: true } } },
+  });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.resource.businessId !== req.user!.businessId) {
+    return res.status(403).json({ error: "You don't have access to this booking" });
+  }
 
   if (!canTransition(booking.status, "COMPLETED")) {
     return res

@@ -18,6 +18,25 @@ model Business {
   // Holidays apply to the whole business (every resource) rather than per-resource —
   // most closures (public holidays, the clinic being shut) affect everyone at once.
   holidays  Holiday[]
+  users     User[]
+}
+
+enum UserRole {
+  STAFF
+  ADMIN
+}
+
+// A staff or admin login — NOT a customer account. Customers never authenticate; they prove
+// ownership of a booking just by knowing its bookingRef (see Booking model). This table only
+// exists for the people running the business.
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id])
+  createdAt    DateTime @default(now())
 }
 
 // A doctor / stylist / dentist / chair — whatever the bookable "unit" is for a Business.

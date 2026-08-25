@@ -1,4 +1,5 @@
 import { FormEvent, useState } from "react";
+import { useAuth } from "../auth/AuthContext";
 
 type CheckInResult = {
   bookingRef: string;
@@ -11,6 +12,7 @@ type CheckInResult = {
 // counterpart to an actual QR scanner — a camera-based scanner is a reasonable next step,
 // but out of scope here since it needs device camera access this simple form doesn't.
 export default function CheckInPage() {
+  const { token, logout } = useAuth();
   const [bookingRef, setBookingRef] = useState("");
   const [result, setResult] = useState<CheckInResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,9 +29,20 @@ export default function CheckInPage() {
     try {
       const res = await fetch(`/api/bookings/${bookingRef.trim()}/checkin`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ method: "manual" }),
       });
+
+      // Token expired or was revoked server-side — send the user back to /login instead of
+      // showing a confusing "Unauthorized" error on a form that looks otherwise normal.
+      if (res.status === 401) {
+        logout();
+        throw new Error("Your session expired. Please log in again.");
+      }
+
       const body = await res.json();
 
       if (!res.ok) {

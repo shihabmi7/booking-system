@@ -1,5 +1,7 @@
 import { Router } from "express";
+import { UserRole } from "@prisma/client";
 import { prisma } from "../db/prisma";
+import { requireAuth, requireRole } from "../middleware/auth";
 
 const router = Router();
 
@@ -9,7 +11,7 @@ const LATE_GRACE_MINUTES = 10;
 // Staff-facing view: every non-cancelled booking for a resource on a given day, ordered by
 // time, with an isLate flag — this is the "who's here, who's next" screen front-desk staff
 // would actually use, as opposed to the customer-facing booking flow.
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async (req, res) => {
   const { resourceId, date } = req.query;
 
   if (typeof resourceId !== "string" || typeof date !== "string") {
@@ -17,6 +19,13 @@ router.get("/", async (req, res) => {
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: "date must be in YYYY-MM-DD format" });
+  }
+
+  // Ownership check: staff can only view the queue for a resource in their own business.
+  const resource = await prisma.resource.findUnique({ where: { id: resourceId } });
+  if (!resource) return res.status(404).json({ error: "Resource not found" });
+  if (resource.businessId !== req.user!.businessId) {
+    return res.status(403).json({ error: "You don't have access to this resource" });
   }
 
   const dayStart = new Date(`${date}T00:00:00`);

@@ -1,11 +1,18 @@
 {
   "info": {
     "name": "Booking System API",
-    "description": "Phase 1-4 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run 'List Services' before anything else, and 'List Available Slots' before creating a booking.",
+    "description": "Phase 1-5 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run '0. Auth' first to get adminToken/staffToken, then 'List Services' before anything else, and 'List Available Slots' before creating a booking.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "adminEmail", "value": "admin@sunriseclinic.test" },
+    { "key": "adminPassword", "value": "AdminPass123!" },
+    { "key": "staffEmail", "value": "staff@sunriseclinic.test" },
+    { "key": "staffPassword", "value": "StaffPass123!" },
+    { "key": "adminToken", "value": "" },
+    { "key": "staffToken", "value": "" },
+    { "key": "newStaffEmail", "value": "" },
     { "key": "resourceId", "value": "" },
     { "key": "serviceId", "value": "" },
     { "key": "date", "value": "2026-08-25" },
@@ -22,6 +29,186 @@
     { "key": "noShowStartTime", "value": "" }
   ],
   "item": [
+    {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "Login as Admin",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "description": "Credentials come from the seed script (prisma/seed.ts) — run 'npm run seed' on the backend first. Auto-saves the JWT as adminToken for every request below that needs ADMIN access."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Response includes a token', () => pm.expect(body.token).to.be.a('string'));",
+                  "pm.test('Role is ADMIN', () => pm.expect(body.user.role).to.eql('ADMIN'));",
+                  "pm.collectionVariables.set('adminToken', body.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Staff",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{staffEmail}}\",\n  \"password\": \"{{staffPassword}}\"\n}"
+            },
+            "description": "Auto-saves the JWT as staffToken — used to prove STAFF-level endpoints work, and that ADMIN-only endpoints correctly reject a STAFF token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Role is STAFF', () => pm.expect(body.user.role).to.eql('STAFF'));",
+                  "pm.collectionVariables.set('staffToken', body.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login with Wrong Password (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"WrongPassword!\"\n}"
+            },
+            "description": "Same error as a nonexistent email would give — proves the API doesn't leak which emails have accounts."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Current User (Me)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "description": "Lets the frontend verify a stored token is still valid and fetch the current user's role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Email matches', () => pm.expect(pm.response.json().email).to.eql(pm.collectionVariables.get('adminEmail')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create New Staff Account (Admin only)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman-staff-{{$timestamp}}@sunriseclinic.test\",\n  \"password\": \"NewStaffPass123!\",\n  \"role\": \"STAFF\"\n}"
+            },
+            "description": "Only an ADMIN token can create accounts. Uses {{$timestamp}} in the email so re-running this doesn't collide with a previous run's account. Auto-saves the created email as newStaffEmail."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Role is STAFF', () => pm.expect(body.role).to.eql('STAFF'));",
+                  "pm.collectionVariables.set('newStaffEmail', body.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create New Staff as Non-Admin (expect 403)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/auth/users",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"should-not-be-created@sunriseclinic.test\",\n  \"password\": \"whatever123\",\n  \"role\": \"STAFF\"\n}"
+            },
+            "description": "Same endpoint, but with a STAFF token instead of ADMIN. requireRole(ADMIN) should reject this with 403 — a valid, logged-in user, just not an authorized one for this action."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 403 Forbidden', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Users (Admin only)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/users",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "description": "Should include the seeded admin/staff accounts plus the one just created above."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const users = pm.response.json();",
+                  "pm.test('Includes the newly created staff account', () => pm.expect(users.some(u => u.email === pm.collectionVariables.get('newStaffEmail'))).to.be.true);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "1. Health & Services",
       "item": [
@@ -49,7 +236,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/services",
-            "description": "Auto-saves the first service's id/resourceId as collection variables for the requests below."
+            "description": "Public — no token needed. Auto-saves the first service's id/resourceId as collection variables for the requests below."
           },
           "event": [
             {
@@ -70,11 +257,29 @@
           ]
         },
         {
+          "name": "List Resources without Token (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/resources",
+            "description": "As of Phase 5, this endpoint requires login. No Authorization header here on purpose — proves requireAuth actually rejects unauthenticated requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
           "name": "List Resources",
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/resources",
-            "description": "Auto-saves the first resource's businessId — needed for the Holidays & Hours folder below."
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
+            "description": "Requires STAFF or ADMIN login — using staffToken here to prove STAFF-level read access works. Auto-saves the first resource's businessId — needed for the Holidays & Hours folder below."
           },
           "event": [
             {
@@ -103,7 +308,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
-            "description": "Uses resourceId/serviceId from 'List Services'. Change the 'date' collection variable if you want a different day. Response is {slots, note} — note is set when the whole day is closed (holiday or weekly closure). Auto-saves the first open slot's startTime."
+            "description": "Public — no token needed (customer-facing). Uses resourceId/serviceId from 'List Services'. Change the 'date' collection variable if you want a different day. Response is {slots, note}. Auto-saves the first open slot's startTime."
           },
           "event": [
             {
@@ -134,7 +339,7 @@
               "mode": "raw",
               "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Postman Test Patient\",\n  \"customerPhone\": \"+8801000000000\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
             },
-            "description": "Books the slot found by 'List Available Slots'. A fresh random idempotencyKey is generated each time this runs, so re-running it with a NEW slot creates a separate booking. Auto-saves the returned bookingRef."
+            "description": "Public — no token needed (customers book without an account). Books the slot found by 'List Available Slots'. Auto-saves the returned bookingRef."
           },
           "event": [
             {
@@ -155,7 +360,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/bookings/{{bookingRef}}",
-            "description": "Public lookup by the customer-facing booking reference — same endpoint Phase 4's QR check-in will use."
+            "description": "Public lookup by the customer-facing booking reference — no login needed, possession of the reference is the 'auth' here."
           },
           "event": [
             {
@@ -259,7 +464,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{closedWeekdayDate}}",
-            "description": "The seeded resource has closedWeekdays: [5] (Friday), and closedWeekdayDate defaults to a Friday. Should return an empty slots array plus a note explaining the weekly closure."
+            "description": "Public. The seeded resource has closedWeekdays: [5] (Friday), and closedWeekdayDate defaults to a Friday. Should return an empty slots array plus a note explaining the weekly closure."
           },
           "event": [
             {
@@ -281,7 +486,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{holidayDate}}",
-            "description": "holidayDate defaults to the seed script's 'Staff Training Day' holiday. Should return an empty slots array plus a note with the holiday reason."
+            "description": "Public. holidayDate defaults to the seed script's 'Staff Training Day' holiday. Should return an empty slots array plus a note with the holiday reason."
           },
           "event": [
             {
@@ -302,8 +507,9 @@
           "name": "List Holidays",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/api/holidays?businessId={{businessId}}",
-            "description": "Requires businessId from 'List Resources'. Should include the seeded 'Staff Training Day' holiday."
+            "url": "{{baseUrl}}/api/holidays",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
+            "description": "Requires STAFF or ADMIN login. Scoped automatically to the logged-in user's own business — no businessId param needed anymore. Should include the seeded 'Staff Training Day' holiday."
           },
           "event": [
             {
@@ -320,12 +526,15 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/holidays",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"date\": \"2026-09-15\",\n  \"reason\": \"Postman Test Holiday\"\n}"
+              "raw": "{\n  \"date\": \"2026-09-15\",\n  \"reason\": \"Postman Test Holiday\"\n}"
             },
-            "description": "Creates a new one-off closure. Auto-saves the returned holiday's id so 'Delete Holiday' below can clean it up."
+            "description": "ADMIN only. Creates a new one-off closure for the admin's own business (businessId comes from the token, not the body). Auto-saves the returned holiday's id so 'Delete Holiday' below can clean it up."
           },
           "event": [
             {
@@ -341,16 +550,44 @@
           ]
         },
         {
+          "name": "Add Holiday as Staff (expect 403)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/holidays",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-10-01\",\n  \"reason\": \"Should be rejected\"\n}"
+            },
+            "description": "Same endpoint as 'Add Holiday', but with a STAFF token — proves managing holidays is ADMIN-only, unlike just viewing them."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 403 Forbidden', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ]
+        },
+        {
           "name": "Add Duplicate Holiday (expect 409)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/holidays",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"businessId\": \"{{businessId}}\",\n  \"date\": \"2026-09-15\",\n  \"reason\": \"Duplicate attempt\"\n}"
+              "raw": "{\n  \"date\": \"2026-09-15\",\n  \"reason\": \"Duplicate attempt\"\n}"
             },
-            "description": "Same businessId+date as 'Add Holiday' above. The @@unique([businessId, date]) constraint should reject this with 409."
+            "description": "Same date as 'Add Holiday' above. The @@unique([businessId, date]) constraint should reject this with 409."
           },
           "event": [
             {
@@ -367,7 +604,8 @@
           "request": {
             "method": "DELETE",
             "url": "{{baseUrl}}/api/holidays/{{holidayId}}",
-            "description": "Cleans up the holiday created by 'Add Holiday'."
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "description": "ADMIN only. Cleans up the holiday created by 'Add Holiday'."
           },
           "event": [
             {
@@ -384,12 +622,15 @@
           "request": {
             "method": "PATCH",
             "url": "{{baseUrl}}/api/resources/{{resourceId}}",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"workingHoursStart\": \"10:00\",\n  \"workingHoursEnd\": \"18:00\",\n  \"closedWeekdays\": [5, 6]\n}"
             },
-            "description": "Updates the resource's daily hours and adds Saturday (6) to the weekly closures alongside the seeded Friday (5). Re-run 'List Available Slots' afterward to see the new hours reflected."
+            "description": "ADMIN only. Updates the resource's daily hours and adds Saturday (6) to the weekly closures alongside the seeded Friday (5). Re-run 'List Available Slots' afterward to see the new hours reflected."
           },
           "event": [
             {
@@ -415,7 +656,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
-            "description": "Re-fetches slots (in case earlier folders booked some) and saves the first open one as checkinStartTime."
+            "description": "Public. Re-fetches slots (in case earlier folders booked some) and saves the first open one as checkinStartTime."
           },
           "event": [
             {
@@ -444,7 +685,7 @@
               "mode": "raw",
               "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{checkinStartTime}}\",\n  \"customerName\": \"Check-in Test Patient\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
             },
-            "description": "Auto-saves the bookingRef as checkinBookingRef (separate from the main 'bookingRef' variable so it doesn't collide with folder 2's booking). Response includes a qrCode field (base64 PNG data URL) — paste it into a browser address bar to see the actual QR image."
+            "description": "Public — customers create bookings without logging in. Auto-saves the bookingRef as checkinBookingRef. Response includes a qrCode field (base64 PNG data URL) — paste it into a browser address bar to see the actual QR image."
           },
           "event": [
             {
@@ -466,9 +707,12 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/checkin",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
             "body": { "mode": "raw", "raw": "{\n  \"method\": \"qr\"\n}" },
-            "description": "Simulates a QR scan. Should succeed since the booking is currently BOOKED."
+            "description": "Requires STAFF or ADMIN login — simulates staff scanning the customer's QR. Should succeed since the booking is currently BOOKED."
           },
           "event": [
             {
@@ -488,7 +732,10 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/checkin",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
             "body": { "mode": "raw", "raw": "{\n  \"method\": \"qr\"\n}" },
             "description": "Same booking, already CHECKED_IN. The state machine should reject this transition."
           },
@@ -507,6 +754,7 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/complete",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
             "description": "CHECKED_IN -> COMPLETED, a valid transition."
           },
           "event": [
@@ -527,6 +775,7 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/no-show",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
             "description": "COMPLETED has no allowed outgoing transitions — proves the state machine rejects this."
           },
           "event": [
@@ -544,7 +793,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
-            "description": "Grabs another open slot (different from the one just booked/completed above) for the no-show scenario."
+            "description": "Public. Grabs another open slot (different from the one just booked/completed above) for the no-show scenario."
           },
           "event": [
             {
@@ -572,7 +821,7 @@
               "mode": "raw",
               "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{noShowStartTime}}\",\n  \"customerName\": \"No-Show Test Patient\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
             },
-            "description": "Auto-saves bookingRef as noShowBookingRef."
+            "description": "Public. Auto-saves bookingRef as noShowBookingRef."
           },
           "event": [
             {
@@ -592,6 +841,7 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings/{{noShowBookingRef}}/no-show",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
             "description": "BOOKED -> NO_SHOW, a valid transition (staff manually marking a customer who never arrived)."
           },
           "event": [
@@ -612,6 +862,7 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings/{{noShowBookingRef}}/checkin",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
             "description": "NO_SHOW has no allowed outgoing transitions — proves a customer can't check in after being marked a no-show."
           },
           "event": [
@@ -629,7 +880,8 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/queue?resourceId={{resourceId}}&date={{date}}",
-            "description": "Should show both test bookings above: one COMPLETED, one NO_SHOW, plus anything else booked for resourceId on this date."
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
+            "description": "Requires STAFF or ADMIN login. Should show both test bookings above: one COMPLETED, one NO_SHOW, plus anything else booked for resourceId on this date."
           },
           "event": [
             {

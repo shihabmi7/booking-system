@@ -88,10 +88,52 @@ Not originally scoped for a specific phase, added when it came up during Phase 3
   Complete action buttons, calling the matching state-machine endpoint and refreshing.
 - **Interview angle:** state machines (booking status transitions), derived vs stored data.
 
-### Phase 5 — Auth & roles ← YOU ARE HERE
-- JWT-based auth for staff/admin; customers can act with just their booking ID (no login required for MVP).
-- Role-based access (admin vs staff).
-- **Interview angle:** authN vs authZ, JWT pitfalls, RBAC.
+### Phase 5 — Auth & roles ✅ DONE
+- `User` model added to schema: email, `passwordHash` (bcrypt), `role` (STAFF/ADMIN enum), scoped
+  to a `businessId`. No public registration endpoint — accounts are created by an ADMIN or by the
+  seed script (bootstraps the first admin/staff so there's no chicken-and-egg problem).
+- `services/auth.ts` — password hashing (`bcryptjs`) and JWT sign/verify (`jsonwebtoken`,
+  8h expiry). Token payload: `{ userId, role, businessId }`.
+- `middleware/auth.ts` — `requireAuth` (verifies `Authorization: Bearer <token>`, sets `req.user`)
+  and `requireRole(...roles)` (403 if the logged-in user's role isn't allowed).
+- `POST /api/auth/login` (public), `GET /api/auth/me` (any logged-in user), `POST /api/auth/users`
+  and `GET /api/auth/users` (ADMIN only — how new staff accounts get created).
+- Staff-facing endpoints now gated: `GET /api/resources`, `PATCH /api/resources/:id`,
+  `GET/POST /api/holidays`, `DELETE /api/holidays/:id`, `GET /api/queue`, and the booking
+  state-transition endpoints (`checkin`, `no-show`, `complete`) all require `requireAuth` +
+  the appropriate role, plus an explicit **ownership check** (the record's `businessId` must
+  match the logged-in user's `businessId` — ADMIN of Business A can't touch Business B's data).
+- Customer-facing endpoints stay fully public by design: `POST /api/bookings`,
+  `GET /api/bookings/:bookingRef`, `GET /api/slots`, `GET /api/services` — customers never log
+  in, they prove ownership of a booking just by knowing its `bookingRef`.
+- Design choice: JWT stored in the frontend's `localStorage` (not an httpOnly cookie) — simpler
+  for a monolith + separate-origin dev setup, tradeoff is XSS exposure vs CSRF exposure.
+- Seed script now creates two sample logins (idempotent — safe to re-run):
+  `admin@sunriseclinic.test` / `AdminPass123!` (ADMIN) and `staff@sunriseclinic.test` /
+  `StaffPass123!` (STAFF).
+- Postman collection: new "0. Auth" folder (login as admin/staff, get current user, admin-creates-
+  staff, a 403 test for a non-admin trying to create a user, list users) plus `Authorization`
+  headers added to every request that's now gated, and two new negative tests (401 with no token,
+  403 for staff attempting an admin-only action).
+- **Interview angle:** authN vs authZ, JWT pitfalls (storage location, stateless revocation),
+  RBAC vs ownership/tenancy checks, why there's no public signup endpoint.
+
+Frontend:
+- `auth/AuthContext.tsx` — React context holding `{ token, user }`, persisted to `localStorage`
+  so a page refresh doesn't log the user out. `login()` calls `POST /api/auth/login`; `logout()`
+  clears both state and storage.
+- `auth/RequireAuth.tsx` — route guard component; redirects to `/login` (remembering the page
+  the user was trying to reach) if there's no logged-in user.
+- `pages/LoginPage.tsx` — email/password form using `useAuth().login()`, redirects back to the
+  originally-requested page (or `/queue`) on success.
+- `App.tsx` — `/checkin` and `/queue` routes now wrapped in `<RequireAuth>`; nav bar shows
+  "Staff Login" when logged out, or the current user's email/role + a Log out button when
+  logged in.
+- `CheckInPage.tsx` and `QueuePage.tsx` — every fetch to a gated endpoint now sends
+  `Authorization: Bearer <token>`; a `401` response triggers `logout()` and shows a "session
+  expired" message instead of a confusing raw error.
+- **Interview angle:** React context for cross-cutting concerns (auth) vs prop drilling,
+  client-side route guards vs relying on the API alone, handling token expiry gracefully in the UI.
 
 ### Phase 6 — AWS deployment
 - EC2 for the API, RDS for Postgres.
@@ -106,4 +148,5 @@ Not originally scoped for a specific phase, added when it came up during Phase 3
 - Write up design decisions as interview talking points (system design story).
 
 ## Next step
-Scaffold the Phase 1 project structure (package.json, tsconfig, Express skeleton, Docker Compose for Postgres) whenever you're ready to start coding.
+Phase 6 — AWS deployment. Run the new Prisma migration + re-seed locally to pick up Phase 5's
+`User` table, test the login flow end to end, then start planning EC2/RDS deployment.
