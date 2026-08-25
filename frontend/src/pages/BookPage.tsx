@@ -1,5 +1,16 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Typography from "@mui/material/Typography";
+import Stack from "@mui/material/Stack";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Alert from "@mui/material/Alert";
+import Divider from "@mui/material/Divider";
+import CircularProgress from "@mui/material/CircularProgress";
 
 type Service = {
   id: string;
@@ -118,110 +129,117 @@ export default function BookPage() {
   }
 
   return (
-    <div>
-      <h1>Book an Appointment</h1>
+    <Stack spacing={3} sx={{ maxWidth: 560 }}>
+      <Typography variant="h4">Book an appointment</Typography>
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+      {error && <Alert severity="error">{error}</Alert>}
 
-      <label style={{ display: "block", marginBottom: "1rem" }}>
-        Service
-        <select
-          value={selectedServiceId}
-          onChange={(e) => setSelectedServiceId(e.target.value)}
-          style={{ display: "block", marginTop: "0.25rem" }}
-        >
-          <option value="">Select a service…</option>
-          {services?.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} — {s.durationMins} min — ${s.price} ({s.resource.name}, {s.resource.business.name})
-            </option>
-          ))}
-        </select>
-      </label>
+      <Card>
+        <CardContent>
+          <Stack spacing={3}>
+            <TextField
+              select
+              label="Service"
+              value={selectedServiceId}
+              onChange={(e) => setSelectedServiceId(e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">
+                <em>Select a service…</em>
+              </MenuItem>
+              {services?.map((s) => (
+                <MenuItem key={s.id} value={s.id}>
+                  {s.name} — {s.durationMins} min — ${s.price} ({s.resource.name})
+                </MenuItem>
+              ))}
+            </TextField>
 
-      {selectedService && (
-        <label style={{ display: "block", marginBottom: "1rem" }}>
-          Date
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            style={{ display: "block", marginTop: "0.25rem" }}
-          />
-        </label>
-      )}
+            {selectedService && (
+              <TextField
+                type="date"
+                label="Date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            )}
 
-      {selectedService && closureNote && (
-        <p style={{ color: "#a05a00" }}>{closureNote}</p>
-      )}
+            {selectedService && closureNote && <Alert severity="warning">{closureNote}</Alert>}
 
-      {selectedService && !closureNote && slots && slots.length === 0 && (
-        <p>No open slots for this date.</p>
-      )}
+            {selectedService && !closureNote && !slots && (
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <CircularProgress size={18} />
+                <Typography variant="body2" color="text.secondary">
+                  Loading open slots…
+                </Typography>
+              </Stack>
+            )}
 
-      {selectedService && slots && slots.length > 0 && (
-        <div style={{ marginBottom: "1rem" }}>
-          <p>Available times:</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            {slots.map((slot) => {
-              const isSelected = selectedSlot?.startTime === slot.startTime;
-              const time = new Date(slot.startTime).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              });
-              return (
-                <button
-                  key={slot.startTime}
-                  type="button"
-                  onClick={() => setSelectedSlot(slot)}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    border: isSelected ? "2px solid #333" : "1px solid #ccc",
-                    background: isSelected ? "#eee" : "white",
-                    cursor: "pointer",
-                  }}
-                >
-                  {time}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+            {selectedService && !closureNote && slots && slots.length === 0 && (
+              <Alert severity="info">No open slots for this date.</Alert>
+            )}
 
-      {selectedSlot && (
-        <form onSubmit={handleSubmit}>
-          <label style={{ display: "block", marginBottom: "0.5rem" }}>
-            Name
-            <input
-              required
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              style={{ display: "block", marginTop: "0.25rem" }}
-            />
-          </label>
-          <label style={{ display: "block", marginBottom: "0.5rem" }}>
-            Phone (optional)
-            <input
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
-              style={{ display: "block", marginTop: "0.25rem" }}
-            />
-          </label>
-          <label style={{ display: "block", marginBottom: "1rem" }}>
-            Email (optional)
-            <input
-              type="email"
-              value={customerEmail}
-              onChange={(e) => setCustomerEmail(e.target.value)}
-              style={{ display: "block", marginTop: "0.25rem" }}
-            />
-          </label>
-          <button type="submit" disabled={submitting}>
-            {submitting ? "Booking…" : "Confirm Booking"}
-          </button>
-        </form>
-      )}
-    </div>
+            {selectedService && slots && slots.length > 0 && (
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  Available times
+                </Typography>
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {slots.map((slot) => {
+                    const isSelected = selectedSlot?.startTime === slot.startTime;
+                    const time = new Date(slot.startTime).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    });
+                    return (
+                      <Chip
+                        key={slot.startTime}
+                        label={time}
+                        clickable
+                        color={isSelected ? "primary" : "default"}
+                        variant={isSelected ? "filled" : "outlined"}
+                        onClick={() => setSelectedSlot(slot)}
+                      />
+                    );
+                  })}
+                </Stack>
+              </Stack>
+            )}
+
+            {selectedSlot && (
+              <>
+                <Divider />
+                <Stack component="form" onSubmit={handleSubmit} spacing={2}>
+                  <TextField
+                    label="Name"
+                    required
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Phone (optional)"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    fullWidth
+                  />
+                  <TextField
+                    type="email"
+                    label="Email (optional)"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    fullWidth
+                  />
+                  <Button type="submit" variant="contained" size="large" disabled={submitting}>
+                    {submitting ? "Booking…" : "Confirm booking"}
+                  </Button>
+                </Stack>
+              </>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }

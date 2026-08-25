@@ -194,6 +194,64 @@ The last gap: there was no way to add a second doctor/stylist/chair without hand
   `undefined` for an omitted field vs `null` for "explicitly no value" is a subtle but real
   distinction in Prisma (and SQL `DEFAULT` in general).
 
+### Post-Phase 5 addition — Frontend redesign (Material Design) ✅ DONE
+The frontend worked but looked like unstyled HTML — every page used raw inline `style={}`
+objects, no shared visual language, no responsive behavior beyond what the browser did by
+default. Rebuilt on MUI (Material UI), the standard Material Design component library for React.
+- `theme.ts` — one `createTheme()` call, the single source of truth for color palette (a
+  clinical teal primary, warm amber secondary), corner radius, and typography. Wrapped with
+  `responsiveFontSizes()` so heading sizes scale down on narrow viewports automatically.
+- `main.tsx` — added `<ThemeProvider theme={theme}>` + `<CssBaseline/>` around the whole app;
+  `CssBaseline` replaces the old hand-written `index.css` reset.
+- `App.tsx` — nav rebuilt as an MUI `AppBar`/`Toolbar`. Above the `md` breakpoint (900px) it
+  shows inline nav buttons; below it, a hamburger `IconButton` opens a `Drawer` with the same
+  links as a list — one `useMediaQuery` call decides the layout for the whole nav instead of
+  per-page media queries.
+- Every page rebuilt with MUI components: `Card`/`CardContent` for forms and detail panels,
+  `TextField`/`MenuItem` for inputs and selects, `Table`/`TableContainer` (which scrolls
+  horizontally on narrow screens instead of squeezing columns) for lists, `Chip` for booking/
+  queue status with color mapped to meaning (primary=booked, warning=checked-in,
+  success=completed, error=no-show), `Alert` for errors/info instead of plain colored `<p>`
+  tags, `Skeleton`/`CircularProgress` for loading states.
+- `AdminLayout` switched from plain `NavLink`s to MUI `Tabs`; `HoursAdminPage`'s weekday
+  picker switched from checkboxes to a `ToggleButtonGroup`.
+- `RequireAuth`'s "access denied" message is now an `Alert` instead of a bare `<h1>`/`<p>`.
+- `frontend/package.json` gained `@mui/material`, `@mui/icons-material`, `@emotion/react`,
+  `@emotion/styled` — **run `npm install` in `frontend/` before `npm run dev`** or the app
+  won't start.
+- **Interview angle:** design tokens / theming (one file controlling color+type+shape app-wide
+  vs scattered inline styles), the `sx` prop vs a CSS-in-JS library vs plain CSS, responsive
+  design via breakpoints (`useMediaQuery`, responsive `sx` objects like `{ xs: ..., md: ... }`)
+  vs media queries, component libraries as a way to get accessibility (focus states, ARIA
+  roles) for free instead of reimplementing it per component.
+
+### Post-Phase 5 addition — Business dashboard ✅ DONE
+The old `/` page was just the Phase 1 health check (API/DB status) — useful during development,
+not something a customer or staff member opening the app actually needs. Replaced it with two
+things: a light public landing page, and a real staff-facing dashboard.
+- `GET /api/dashboard/summary?date=YYYY-MM-DD` — new endpoint, STAFF or ADMIN, same access
+  level as `/api/queue`. Unlike the queue (one resource's line at a time), this aggregates
+  **every resource in the caller's business** for one day: booking counts by status
+  (booked/checked-in/completed/no-show/cancelled), expected vs. completed revenue, and the
+  next 5 upcoming bookings. Defaults to today if no `date` is given.
+- Revenue is computed two ways on purpose: **expected** (booked + checked-in + completed —
+  "what today should be worth if everyone shows up") and **completed** ("what's actually been
+  collected so far"). A no-show's price is deliberately excluded from expected revenue — it's
+  lost business, not revenue still coming.
+- Frontend: `pages/DashboardPage.tsx` at `/dashboard` (auth required, no specific role — same
+  level as Check-in/Queue) — KPI cards (booked/checked-in/completed/no-show), a revenue card
+  with a completion-rate progress bar, a "next up" list, and quick-action buttons to the queue
+  and manual check-in. `pages/HomePage.tsx` simplified to a public landing page (two CTA
+  buttons: book, find booking) — the health-check card it used to show moved conceptually into
+  the dashboard's territory (operational status isn't customer-facing content).
+- Post-login redirect changed from `/queue` to `/dashboard` — a logged-in staff member's most
+  useful landing page is now the business overview, not straight into one resource's queue.
+- **Interview angle:** aggregation queries (grouping/summing across a relation) vs. row-level
+  lookups, choosing what "today" means for a report (server's local day boundaries, same
+  simplification `/api/queue` already made — a real timezone-aware version would use
+  `Business.timezone`), designing an API response shape around what the UI needs to render
+  in one request instead of forcing multiple round trips.
+
 ### Phase 6 — AWS deployment
 - EC2 for the API, RDS for Postgres.
 - S3 for storing generated QR images.

@@ -1,5 +1,20 @@
 import { useEffect, useState } from "react";
 import { useAuthFetch } from "../auth/useAuthFetch";
+import Typography from "@mui/material/Typography";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Alert from "@mui/material/Alert";
+import Paper from "@mui/material/Paper";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { ChipProps } from "@mui/material/Chip";
 
 type Resource = {
   id: string;
@@ -14,6 +29,14 @@ type QueueEntry = {
   startTime: string;
   isLate: boolean;
   service: { name: string; durationMins: number };
+};
+
+const STATUS_COLOR: Record<string, ChipProps["color"]> = {
+  BOOKED: "primary",
+  CHECKED_IN: "warning",
+  COMPLETED: "success",
+  NO_SHOW: "error",
+  CANCELLED: "default",
 };
 
 // The front-desk view: pick a resource + date, see everyone booked for that day in order,
@@ -68,85 +91,89 @@ export default function QueuePage() {
   }
 
   return (
-    <div>
-      <h1>Queue</h1>
+    <Stack spacing={3}>
+      <Typography variant="h4">Queue</Typography>
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      {actionError && <p style={{ color: "crimson" }}>{actionError}</p>}
+      {error && <Alert severity="error">{error}</Alert>}
+      {actionError && <Alert severity="error">{actionError}</Alert>}
 
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-        <label>
-          Resource
-          <select
-            value={resourceId}
-            onChange={(e) => setResourceId(e.target.value)}
-            style={{ display: "block", marginTop: "0.25rem" }}
-          >
-            {resources?.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name} ({r.business.name})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Date
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            style={{ display: "block", marginTop: "0.25rem" }}
-          />
-        </label>
-      </div>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ maxWidth: 480 }}>
+        <TextField
+          select
+          label="Resource"
+          value={resourceId}
+          onChange={(e) => setResourceId(e.target.value)}
+          fullWidth
+        >
+          {resources?.map((r) => (
+            <MenuItem key={r.id} value={r.id}>
+              {r.name} ({r.business.name})
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          type="date"
+          label="Date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          fullWidth
+        />
+      </Stack>
 
-      {queue && queue.length === 0 && <p>No bookings for this resource on this date.</p>}
+      {queue && queue.length === 0 && <Alert severity="info">No bookings for this resource on this date.</Alert>}
 
       {queue && queue.length > 0 && (
-        <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
-              <th>Time</th>
-              <th>Customer</th>
-              <th>Service</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {queue.map((entry) => (
-              <tr key={entry.bookingRef} style={{ borderBottom: "1px solid #eee" }}>
-                <td>
-                  {new Date(entry.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </td>
-                <td>{entry.customerName}</td>
-                <td>{entry.service.name}</td>
-                <td>
-                  {entry.status}
-                  {entry.isLate && <span style={{ color: "#a05a00" }}> (late)</span>}
-                </td>
-                <td style={{ display: "flex", gap: "0.5rem" }}>
-                  {entry.status === "BOOKED" && (
-                    <>
-                      <button type="button" onClick={() => runAction(entry.bookingRef, "checkin")}>
-                        Check In
-                      </button>
-                      <button type="button" onClick={() => runAction(entry.bookingRef, "no-show")}>
-                        No-Show
-                      </button>
-                    </>
-                  )}
-                  {entry.status === "CHECKED_IN" && (
-                    <button type="button" onClick={() => runAction(entry.bookingRef, "complete")}>
-                      Complete
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableContainer component={Paper} variant="outlined">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Time</TableCell>
+                <TableCell>Customer</TableCell>
+                <TableCell>Service</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {queue.map((entry) => (
+                <TableRow key={entry.bookingRef} hover>
+                  <TableCell>
+                    {new Date(entry.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </TableCell>
+                  <TableCell>{entry.customerName}</TableCell>
+                  <TableCell>{entry.service.name}</TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={0.75} alignItems="center">
+                      <Chip size="small" color={STATUS_COLOR[entry.status] ?? "default"} label={entry.status} />
+                      {entry.isLate && <Chip size="small" color="warning" variant="outlined" label="late" />}
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1}>
+                      {entry.status === "BOOKED" && (
+                        <>
+                          <Button size="small" variant="contained" onClick={() => runAction(entry.bookingRef, "checkin")}>
+                            Check in
+                          </Button>
+                          <Button size="small" variant="outlined" color="error" onClick={() => runAction(entry.bookingRef, "no-show")}>
+                            No-show
+                          </Button>
+                        </>
+                      )}
+                      {entry.status === "CHECKED_IN" && (
+                        <Button size="small" variant="contained" color="success" onClick={() => runAction(entry.bookingRef, "complete")}>
+                          Complete
+                        </Button>
+                      )}
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
-    </div>
+    </Stack>
   );
 }

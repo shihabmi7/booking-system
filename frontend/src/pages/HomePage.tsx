@@ -1,43 +1,30 @@
-import { useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import Typography from "@mui/material/Typography";
+import Stack from "@mui/material/Stack";
+import Button from "@mui/material/Button";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import SearchIcon from "@mui/icons-material/Search";
 
-type HealthResponse = {
-  status: string;
-  dbConnected: boolean;
-  timestamp: string;
-};
-
-// Same health-check page from Phase 1, just moved into its own route now that
-// the app has more than one page.
+// Public landing page — the health-check status card that used to live here moved to
+// /dashboard (staff/admin only), since "is the API up" and "database connected" are
+// operational details, not something a customer booking an appointment needs to see. This
+// page's only job now is pointing a customer at the two things they'd actually come here for.
 export default function HomePage() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/health")
-      .then((res) => {
-        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-        return res.json();
-      })
-      .then(setHealth)
-      .catch((err) => setError(err.message));
-  }, []);
-
   return (
-    <div>
-      <h1>Booking System</h1>
-      <p>Phase 2 — backend schema + frontend routing.</p>
-
-      {error && <p style={{ color: "crimson" }}>Backend not reachable: {error}</p>}
-
-      {!error && !health && <p>Checking backend connection…</p>}
-
-      {health && (
-        <ul>
-          <li>API status: {health.status}</li>
-          <li>Database connected: {health.dbConnected ? "yes" : "no"}</li>
-          <li>Server time: {health.timestamp}</li>
-        </ul>
-      )}
-    </div>
+    <Stack spacing={2} sx={{ maxWidth: 520 }}>
+      <Typography variant="h4">Book your appointment</Typography>
+      <Typography color="text.secondary">
+        Pick a service and an open time slot — no account needed. Already booked? Look up your
+        appointment with your booking reference.
+      </Typography>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ pt: 1 }}>
+        <Button component={RouterLink} to="/book" variant="contained" size="large" startIcon={<EventAvailableIcon />}>
+          Book an appointment
+        </Button>
+        <Button component={RouterLink} to="/find-booking" variant="outlined" size="large" startIcon={<SearchIcon />}>
+          Find my booking
+        </Button>
+      </Stack>
+    </Stack>
   );
 }

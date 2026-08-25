@@ -1,5 +1,13 @@
 import { FormEvent, useState } from "react";
 import { useAuthFetch } from "../auth/useAuthFetch";
+import Typography from "@mui/material/Typography";
+import Stack from "@mui/material/Stack";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
 
 type CheckInResult = {
   bookingRef: string;
@@ -51,34 +59,39 @@ export default function CheckInPage() {
   }
 
   return (
-    <div>
-      <h1>Staff Check-in</h1>
-      <p>Enter a customer's booking reference to check them in.</p>
+    <Stack spacing={3} sx={{ maxWidth: 520 }}>
+      <Typography variant="h4">Staff check-in</Typography>
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem" }}>
-        <input
-          value={bookingRef}
-          onChange={(e) => setBookingRef(e.target.value)}
-          placeholder="Booking reference"
-          style={{ flex: 1, padding: "0.4rem" }}
-        />
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Checking in…" : "Check In"}
-        </button>
-      </form>
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Typography color="text.secondary">Enter a customer's booking reference to check them in.</Typography>
+            <Stack component="form" onSubmit={handleSubmit} direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+              <TextField
+                value={bookingRef}
+                onChange={(e) => setBookingRef(e.target.value)}
+                placeholder="Booking reference"
+                fullWidth
+                autoFocus
+              />
+              <Button type="submit" variant="contained" disabled={submitting}>
+                {submitting ? "Checking in…" : "Check in"}
+              </Button>
+            </Stack>
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+            {error && <Alert severity="error">{error}</Alert>}
 
-      {result && (
-        <div style={{ padding: "1rem", border: "1px solid #ccc" }}>
-          <p>
-            ✅ Checked in <strong>{result.customerName}</strong> ({result.bookingRef})
-          </p>
-          {result.isLate && (
-            <p style={{ color: "#a05a00" }}>⚠ This check-in is more than 10 minutes after the scheduled time.</p>
-          )}
-        </div>
-      )}
-    </div>
+            {result && (
+              <Alert severity={result.isLate ? "warning" : "success"}>
+                <AlertTitle>
+                  Checked in {result.customerName} ({result.bookingRef})
+                </AlertTitle>
+                {result.isLate && "This check-in is more than 10 minutes after the scheduled time."}
+              </Alert>
+            )}
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }

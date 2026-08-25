@@ -1,6 +1,8 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
 
 // Wrap any staff-facing page's <Route element={...}> with this. If there's no logged-in
 // user, redirect to /login instead of rendering the page (and letting its fetch calls fail
@@ -28,10 +30,10 @@ export default function RequireAuth({
 
   if (role && user.role !== role) {
     return (
-      <div>
-        <h1>Access denied</h1>
-        <p>This page requires the {role} role. You're logged in as {user.role}.</p>
-      </div>
+      <Alert severity="warning">
+        <AlertTitle>Access denied</AlertTitle>
+        This page requires the {role} role. You're logged in as {user.role}.
+      </Alert>
     );
   }
 

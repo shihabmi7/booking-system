@@ -1,5 +1,5 @@
-body {
-  margin: 0;
-  background: #f7f7f8;
-  color: #1a1a1a;
+/* Layout/color resets now live in theme.ts + <CssBaseline/> (see main.tsx) — this file only
+   keeps things CssBaseline doesn't own. */
+* {
+  box-sizing: border-box;
 }

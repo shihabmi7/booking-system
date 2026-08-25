@@ -1055,6 +1055,54 @@
           ]
         }
       ]
+    },
+    {
+      "name": "6. Dashboard",
+      "item": [
+        {
+          "name": "Dashboard Summary (Staff)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/summary?date={{date}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
+            "description": "Requires STAFF or ADMIN login. Aggregates every resource in the caller's business for one day — booking counts by status, expected vs completed revenue, and up to 5 upcoming bookings. Defaults to today if the date param is omitted."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has totals and revenue', () => {",
+                  "  pm.expect(body).to.have.property('totals');",
+                  "  pm.expect(body).to.have.property('revenue');",
+                  "  pm.expect(body).to.have.property('nextUp');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard Summary without Token (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/summary",
+            "description": "No Authorization header on purpose — proves this business-data endpoint isn't accidentally public."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

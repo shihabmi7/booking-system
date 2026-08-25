@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
 import { useAuthFetch } from "../../auth/useAuthFetch";
+import Stack from "@mui/material/Stack";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 
 type Resource = {
   id: string;
@@ -61,10 +71,6 @@ export default function HoursAdminPage() {
     if (r) selectResource(r);
   }
 
-  function toggleWeekday(value: number) {
-    setClosedWeekdays((prev) => (prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]));
-  }
-
   async function handleSave() {
     setError(null);
     setSuccess(null);
@@ -87,53 +93,63 @@ export default function HoursAdminPage() {
   }
 
   return (
-    <div>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      {success && <p style={{ color: "#0f6e56" }}>{success}</p>}
+    <Stack spacing={3} sx={{ maxWidth: 560 }}>
+      {error && <Alert severity="error">{error}</Alert>}
+      {success && <Alert severity="success">{success}</Alert>}
 
-      <label>
-        Resource
-        <select
-          value={resourceId}
-          onChange={(e) => handleResourceChange(e.target.value)}
-          style={{ display: "block", padding: "0.4rem", marginBottom: "1rem" }}
-        >
-          {resources?.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Card>
+        <CardContent>
+          <Stack spacing={3}>
+            <TextField select label="Resource" value={resourceId} onChange={(e) => handleResourceChange(e.target.value)} fullWidth>
+              {resources?.map((r) => (
+                <MenuItem key={r.id} value={r.id}>
+                  {r.name}
+                </MenuItem>
+              ))}
+            </TextField>
 
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-        <label>
-          Opens
-          <input type="time" value={start} onChange={(e) => setStart(e.target.value)} style={{ display: "block", padding: "0.4rem" }} />
-        </label>
-        <label>
-          Closes
-          <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} style={{ display: "block", padding: "0.4rem" }} />
-        </label>
-      </div>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <TextField
+                type="time"
+                label="Opens"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+              <TextField
+                type="time"
+                label="Closes"
+                value={end}
+                onChange={(e) => setEnd(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+              />
+            </Stack>
 
-      <p style={{ marginBottom: "0.25rem" }}>Closed every week on:</p>
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
-        {WEEKDAYS.map((day) => (
-          <label key={day.value} style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-            <input
-              type="checkbox"
-              checked={closedWeekdays.includes(day.value)}
-              onChange={() => toggleWeekday(day.value)}
-            />
-            {day.label}
-          </label>
-        ))}
-      </div>
+            <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                Closed every week on
+              </Typography>
+              <ToggleButtonGroup
+                value={closedWeekdays}
+                onChange={(_e, next: number[]) => setClosedWeekdays(next)}
+                size="small"
+              >
+                {WEEKDAYS.map((day) => (
+                  <ToggleButton key={day.value} value={day.value}>
+                    {day.label}
+                  </ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+            </Stack>
 
-      <button type="button" onClick={handleSave} disabled={saving || !resourceId}>
-        {saving ? "Saving…" : "Save"}
-      </button>
-    </div>
+            <Button variant="contained" onClick={handleSave} disabled={saving || !resourceId} sx={{ alignSelf: "flex-start" }}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }

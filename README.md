@@ -78,6 +78,17 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   seed script. ADMIN only, same pattern as services/holidays. New `/admin/resources` tab (name
   + a list of existing resources); editing an existing resource's hours still happens on the
   `/admin/hours` tab.
+- **Frontend redesign (post-Phase 5 addition):** rebuilt every page on MUI (Material UI) —
+  a real theme (`theme.ts`: color palette, corner radius, typography, responsive font
+  scaling), an `AppBar` nav that collapses into a `Drawer` below 900px, `Card`/`TextField`/
+  `Table`/`Chip`/`Alert` everywhere instead of raw inline styles. **New dependency — run
+  `npm install` in `frontend/` before `npm run dev`.**
+- **Business dashboard (post-Phase 5 addition):** new `GET /api/dashboard/summary` (STAFF/
+  ADMIN) aggregates every resource in the business for one day — booking counts by status,
+  expected vs. completed revenue, next 5 upcoming bookings. New `/dashboard` page (KPI cards,
+  revenue + completion-rate, next-up list, quick actions) is now where staff land after
+  logging in. `/` (Home) simplified to a public landing page with just "Book" and "Find my
+  booking" — the old health-check status card is gone from there.
 
 ### What's next — Phase 6: AWS deployment
 - EC2 for the API, RDS for Postgres, S3 for QR images, SES for confirmation emails.
@@ -143,6 +154,7 @@ booking-system/
 │   ├── src/routes/resources.ts # GET/POST /api/resources, PATCH /api/resources/:id
 │   ├── src/routes/queue.ts    # GET /api/queue — staff "who's here/next" view
 │   ├── src/routes/auth.ts     # POST /api/auth/login, GET .../me, POST/GET .../users
+│   ├── src/routes/dashboard.ts # GET /api/dashboard/summary — business-wide daily stats
 │   ├── src/services/slotGenerator.ts # pure function: working hours -> candidate slots
 │   ├── src/services/availability.ts  # candidates minus bookings minus holidays/closed days
 │   ├── src/services/qrCode.ts # generates a QR data URL from a bookingRef
@@ -153,14 +165,16 @@ booking-system/
 │   └── src/db/prisma.ts       # shared Prisma Client instance
 ├── postman/booking-system.postman_collection.json # importable API test collection
 └── frontend/
-    ├── src/App.tsx             # Layout shell + routes (nav bar, <Routes>)
-    ├── src/main.tsx            # React entrypoint, wraps App in BrowserRouter + AuthProvider
+    ├── src/theme.ts            # MUI theme — palette, shape, typography (single source of truth)
+    ├── src/App.tsx             # Layout shell + routes (MUI AppBar/Drawer nav, <Routes>)
+    ├── src/main.tsx            # React entrypoint — ThemeProvider + CssBaseline, BrowserRouter, AuthProvider
     ├── src/auth/AuthContext.tsx # login/logout, token+user persisted to localStorage
     ├── src/auth/RequireAuth.tsx # route guard — redirects to /login if logged out, or shows
     │                            #   "access denied" if logged in with the wrong role
     ├── src/auth/useAuthFetch.ts # shared fetch wrapper: attaches token, logs out on 401
     ├── src/pages/LoginPage.tsx # "/login" — staff/admin login form
-    ├── src/pages/HomePage.tsx  # "/" — health check
+    ├── src/pages/HomePage.tsx  # "/" — public landing page (book / find booking CTAs)
+    ├── src/pages/DashboardPage.tsx # "/dashboard" — business-wide daily stats (auth required)
     ├── src/pages/ServicesPage.tsx # "/services" — real seeded data from GET /api/services
     ├── src/pages/BookPage.tsx  # "/book" — the booking wizard
     ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form

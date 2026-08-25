@@ -1,4 +1,16 @@
 import { useEffect, useState } from "react";
+import Typography from "@mui/material/Typography";
+import Stack from "@mui/material/Stack";
+import Alert from "@mui/material/Alert";
+import Skeleton from "@mui/material/Skeleton";
+import Paper from "@mui/material/Paper";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Chip from "@mui/material/Chip";
 
 // Shape returned by GET /api/services — mirrors the Prisma query in
 // backend/src/routes/services.ts (service fields + nested resource + business name).
@@ -32,39 +44,46 @@ export default function ServicesPage() {
   }, []);
 
   return (
-    <div>
-      <h1>Services</h1>
+    <Stack spacing={3}>
+      <Typography variant="h4">Services</Typography>
 
-      {error && <p style={{ color: "crimson" }}>Failed to load services: {error}</p>}
+      {error && <Alert severity="error">Failed to load services: {error}</Alert>}
 
-      {!error && !services && <p>Loading services…</p>}
+      {!error && !services && <Skeleton variant="rounded" height={180} />}
 
-      {services && services.length === 0 && <p>No services found — did you run "npm run seed"?</p>}
+      {services && services.length === 0 && <Alert severity="info">No services found — did you run "npm run seed"?</Alert>}
 
       {services && services.length > 0 && (
-        <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
-              <th>Service</th>
-              <th>Duration</th>
-              <th>Price</th>
-              <th>Provider</th>
-              <th>Business</th>
-            </tr>
-          </thead>
-          <tbody>
-            {services.map((service) => (
-              <tr key={service.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td>{service.name}</td>
-                <td>{service.durationMins} min</td>
-                <td>${service.price}</td>
-                <td>{service.resource.name}</td>
-                <td>{service.resource.business.name}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        // TableContainer scrolls horizontally on narrow screens instead of squeezing every
+        // column — the same responsive pattern used for every table in this app (queue,
+        // admin lists), so a phone-width viewport never forces text to wrap awkwardly.
+        <TableContainer component={Paper} variant="outlined">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Service</TableCell>
+                <TableCell>Duration</TableCell>
+                <TableCell>Price</TableCell>
+                <TableCell>Provider</TableCell>
+                <TableCell>Business</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {services.map((service) => (
+                <TableRow key={service.id} hover>
+                  <TableCell sx={{ fontWeight: 500 }}>{service.name}</TableCell>
+                  <TableCell>
+                    <Chip size="small" label={`${service.durationMins} min`} />
+                  </TableCell>
+                  <TableCell>${service.price}</TableCell>
+                  <TableCell>{service.resource.name}</TableCell>
+                  <TableCell>{service.resource.business.name}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
-    </div>
+    </Stack>
   );
 }

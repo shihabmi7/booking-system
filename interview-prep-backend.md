@@ -395,4 +395,38 @@ separate UI within one tab).
 
 ---
 
+## Post-Phase 5 addition — Business dashboard
+
+**Q: `GET /api/dashboard/summary` fetches every matching booking with `findMany()` and sums revenue in a JavaScript `for` loop, instead of asking the database to do the sum (e.g. Prisma's `aggregate`/`groupBy`). Why?**
+A: Prisma's `aggregate`/`sum` works on a column of the model you're querying directly — but
+the value being summed here (`service.price`) lives on a *related* model (`Service`), not on
+`Booking` itself, and Prisma can't sum across a relation in one query. The realistic options
+were: a raw SQL query with a `JOIN` (more power, less type safety, and a second query
+language to maintain), or fetch the bookings with their related service price included and
+reduce them in application code. For a single business's one-day booking volume (dozens to
+low hundreds of rows, not millions), summing in JS is simpler, fully type-safe, and fast
+enough — the tradeoff would flip if this needed to aggregate across months of data or the
+whole platform at once, where pulling every row into memory stops being reasonable.
+
+**Q: Why are `expected` and `completed` revenue reported separately instead of just one "today's revenue" number?**
+A: They answer different business questions. "Completed" is revenue actually realized — money
+for visits that happened. "Expected" is what today is worth *if every remaining booking goes
+as scheduled* — useful for a front-desk or owner checking mid-morning whether the day is on
+track, when most bookings haven't happened yet. Collapsing them into one number would either
+under-report the day early on (only counting completed) or overstate it by including no-shows
+as if they were real revenue. A `NO_SHOW` booking's price is explicitly left out of `expected`
+for the same reason — once someone doesn't show up, that revenue isn't "still coming," it's lost.
+
+**Q: The endpoint accepts an optional `?date=` query param but defaults to "today" computed with `new Date().toISOString().slice(0, 10)` on the server. What's the hidden assumption there, and where's it already been made elsewhere in this codebase?**
+A: It assumes the server's own clock/timezone is the right definition of "today" for the
+business — which silently breaks if the server (e.g. a future EC2 instance in Phase 6) runs in
+UTC but the business operates in, say, `Asia/Dhaka` (the seeded business's own `timezone`
+field, notably unused here). Near midnight in either direction, "today" on the server and
+"today" for the business's actual customers can disagree by a full day. This is the exact same
+simplification `GET /api/queue`'s `dayStart`/`dayEnd` computation already made back in Phase 4
+— worth naming as a known limitation, and pointing at `Business.timezone` as the field that
+already exists in the schema for a more correct version to eventually use.
+
+---
+
 ## Phase 6 — (not started yet)

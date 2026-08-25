@@ -1,5 +1,18 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useAuthFetch } from "../../auth/useAuthFetch";
+import Stack from "@mui/material/Stack";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import Paper from "@mui/material/Paper";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
 
 type Holiday = { id: string; date: string; reason: string | null };
 
@@ -66,58 +79,66 @@ export default function HolidaysAdminPage() {
   }
 
   return (
-    <div>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+    <Stack spacing={3}>
+      {error && <Alert severity="error">{error}</Alert>}
 
-      <form onSubmit={handleAdd} style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", alignItems: "end" }}>
-        <label>
-          Date
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            style={{ display: "block", padding: "0.4rem" }}
-          />
-        </label>
-        <label>
-          Reason (optional)
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            style={{ display: "block", padding: "0.4rem" }}
-          />
-        </label>
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Adding…" : "Add holiday"}
-        </button>
-      </form>
+      <Card>
+        <CardContent>
+          <Stack
+            component="form"
+            onSubmit={handleAdd}
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            alignItems={{ sm: "center" }}
+          >
+            <TextField
+              type="date"
+              label="Date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              label="Reason (optional)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              fullWidth
+            />
+            <Button type="submit" variant="contained" disabled={submitting} sx={{ whiteSpace: "nowrap" }}>
+              {submitting ? "Adding…" : "Add holiday"}
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
 
-      {holidays && holidays.length === 0 && <p>No holidays set.</p>}
+      {holidays && holidays.length === 0 && <Alert severity="info">No holidays set.</Alert>}
 
       {holidays && holidays.length > 0 && (
-        <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
-              <th>Date</th>
-              <th>Reason</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {holidays.map((h) => (
-              <tr key={h.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td>{h.date.slice(0, 10)}</td>
-                <td>{h.reason || "—"}</td>
-                <td>
-                  <button type="button" onClick={() => handleDelete(h.id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <TableContainer component={Paper} variant="outlined">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Date</TableCell>
+                <TableCell>Reason</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {holidays.map((h) => (
+                <TableRow key={h.id} hover>
+                  <TableCell>{h.date.slice(0, 10)}</TableCell>
+                  <TableCell>{h.reason || "—"}</TableCell>
+                  <TableCell>
+                    <Button size="small" color="error" onClick={() => handleDelete(h.id)}>
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
-    </div>
+    </Stack>
   );
 }

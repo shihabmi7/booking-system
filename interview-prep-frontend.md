@@ -279,4 +279,88 @@ instead of duplicating that form's fields and validation a second time.
 
 ---
 
+## Post-Phase 5 addition — Frontend redesign (Material Design)
+
+**Q: What does `theme.ts` + `<ThemeProvider>` actually buy you over just writing better inline `style={}` objects on each page?**
+A: A single source of truth. Before this change, the primary color, spacing, and corner
+radius were duplicated as literal values (`#ccc`, `0.4rem`, `1px solid`) across ten separate
+files — changing the brand color meant a find-and-replace across the whole codebase, and
+nothing guaranteed two pages used the exact same shade of gray. `createTheme()` defines the
+palette, typography, and shape once; every MUI component (`Button`, `Card`, `Chip`, ...)
+reads from that theme automatically via `<ThemeProvider>`'s React context, so changing
+`theme.palette.primary.main` in one place changes every button, link, and highlighted tab in
+the app at once. This is the general "design tokens" idea — colors and spacing as named,
+centralized values instead of scattered magic numbers — MUI just gives you the plumbing for it.
+
+**Q: How does the nav bar know when to switch from inline buttons to a hamburger menu, and why 900px specifically?**
+A: `useMediaQuery(theme.breakpoints.down("md"))` — MUI's default breakpoints are
+`xs=0, sm=600, md=900, lg=1200, xl=1536`, and `.down("md")` means "viewport width is below
+900px." `useMediaQuery` is a React hook wrapping the browser's `window.matchMedia` API — it
+returns a boolean and re-renders the component whenever that boolean's value changes (e.g. the
+window gets resized across the breakpoint), which is what makes the switch live instead of only
+correct on page load. 900px specifically is just MUI's own default `md` breakpoint, chosen
+because it's roughly where a typical tablet-portrait/small-laptop width sits — past that point,
+six nav links plus a login button reliably stop fitting on one line.
+
+**Q: `TableContainer` is used for every list in this app (services, queue, admin tables) instead of building a separate mobile card layout. Is a horizontally-scrolling table actually "responsive"?**
+A: Yes — responsive doesn't mean "reflows into a completely different layout at every
+breakpoint," it means "usable at every viewport width." A `TableContainer` on a table wider
+than the screen adds a horizontal scrollbar automatically instead of letting columns overflow
+the page or squeeze text into unreadable wrapping. A bespoke "cards on mobile, table on
+desktop" version would look nicer but doubles the markup and the logic for every list page in
+the app; for a handful of columns (time, customer, service, status, actions), horizontal
+scroll is a reasonable, much cheaper tradeoff — worth naming explicitly as a deliberate choice
+rather than an oversight if asked in an interview.
+
+**Q: `BookingDetailsPage` and `QueuePage` both map a booking's `status` string to a `Chip` color via a `Record<string, ChipProps["color"]>` lookup object. Why not just a `switch` statement or inline ternary chain in each component?**
+A: A lookup object is data, not control flow — `STATUS_COLOR[booking.status]` is one
+expression, versus a `switch` with five `case`s and `return`s repeated in every component that
+needs it. It also makes the mapping itself inspectable and testable independent of any
+component (you can log or unit-test `STATUS_COLOR` directly), and adding a new status later
+is a one-line addition to the object instead of finding every `switch` statement in the
+codebase that handles booking status and updating each one. The tradeoff is it's only better
+when the mapping is genuinely static/data-like — if the color depended on more than just the
+status string (e.g. also on `isLate`), a lookup object would need to become nested or you'd
+fall back to a function, which is exactly what a `switch` is better suited for.
+
+---
+
+## Post-Phase 5 addition — Business dashboard
+
+**Q: Why does the health-check status card move off the public `/` page instead of just staying there alongside the new "Book" / "Find booking" buttons?**
+A: Audience mismatch. `/` is the first thing a customer sees — "is the API up" and "is the
+database connected" are operational details meaningful to whoever runs the business, not
+information a customer booking an appointment needs or would understand. Keeping it on the
+public page also means anyone (not just staff) could see internal system status, which is a
+minor but real information leak. Moving it under `/dashboard` (auth required) puts diagnostic-
+style information behind the same audience boundary the rest of the app already draws between
+customer-facing and staff-facing pages — this project doesn't currently have a dedicated
+"system status" page at all, since that health data effectively became just one more thing a
+logged-in dashboard could show if it mattered enough to bring back.
+
+**Q: `DashboardPage` fetches `/api/dashboard/summary` again every time `date` changes, via a `useEffect` with `[date]` as its dependency array — same pattern as `QueuePage`'s resource/date effect. Why not fetch once and filter the results client-side when the date changes?**
+A: The data itself is different per date, not just a different view of the same data — a
+different `date` means an entirely different set of bookings, revenue totals, and "next up"
+list from the backend, not a subset of something already in memory. Fetching once and filtering
+would require pulling *all* bookings ever made for the business up front (unbounded, and
+growing forever), just to slice out one day's worth client-side. Re-fetching per date keeps the
+request small and the server doing the aggregation it's already positioned to do efficiently
+against the database — the same reasoning `BookPage`'s slot-refetching-per-date already
+established back in Phase 3.
+
+**Q: The `KpiCard` component takes `color` as a raw hex string prop instead of a theme palette key like `"primary"` or `"success"`. Doesn't that break the "one theme, one source of truth" principle from the MUI redesign?**
+A: It's a deliberate, narrow exception, not an oversight. The four KPI cards are color-coded
+by *meaning that's specific to this one dashboard* (booked=teal, checked-in=amber,
+completed=green, no-shows=red) rather than by MUI's generic severity levels (`primary`,
+`success`, `error`, ...) — reusing `theme.palette.success.main` for "completed" happens to
+line up, but `theme.palette.warning.main` for "checked-in" or a distinct teal for "booked"
+don't correspond to any existing semantic palette role. Hardcoding hex values here is the same
+tradeoff as `STATUS_COLOR` mapping status strings to `ChipProps["color"]` elsewhere — the
+difference is that mapping reuses MUI's built-in severity colors (because booking status
+already matches that vocabulary: success/warning/error), while these four values don't, so
+inventing new palette roles just for one page's icon backgrounds wasn't worth doing over four
+local constants.
+
+---
+
 ## Phase 6 — (not started yet)

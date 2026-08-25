@@ -11,6 +11,7 @@ import holidaysRouter from "./routes/holidays";
 import resourcesRouter from "./routes/resources";
 import queueRouter from "./routes/queue";
 import authRouter from "./routes/auth";
+import dashboardRouter from "./routes/dashboard";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -26,6 +27,7 @@ app.use("/api/holidays", holidaysRouter);
 app.use("/api/resources", resourcesRouter);
 app.use("/api/queue", queueRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/dashboard", dashboardRouter);
 
 app.listen(PORT, () => {
   console.log(`Booking system API listening on http://localhost:${PORT}`);

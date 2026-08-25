@@ -1,5 +1,19 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useAuthFetch } from "../../auth/useAuthFetch";
+import Stack from "@mui/material/Stack";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import Button from "@mui/material/Button";
+import Alert from "@mui/material/Alert";
+import Paper from "@mui/material/Paper";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
 
 type Resource = { id: string; name: string };
 
@@ -132,123 +146,125 @@ export default function ServicesAdminPage() {
   }
 
   return (
-    <div>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+    <Stack spacing={3}>
+      {error && <Alert severity="error">{error}</Alert>}
 
-      <form onSubmit={handleAdd} style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", alignItems: "end" }}>
-        <label>
-          Resource
-          <select
-            value={resourceId}
-            onChange={(e) => setResourceId(e.target.value)}
-            style={{ display: "block", padding: "0.4rem" }}
+      <Card>
+        <CardContent>
+          <Stack
+            component="form"
+            onSubmit={handleAdd}
+            direction={{ xs: "column", md: "row" }}
+            spacing={2}
+            alignItems={{ md: "center" }}
           >
-            {resources?.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Name
-          <input value={name} onChange={(e) => setName(e.target.value)} style={{ display: "block", padding: "0.4rem" }} />
-        </label>
-        <label>
-          Duration (min)
-          <input
-            type="number"
-            min="1"
-            value={durationMins}
-            onChange={(e) => setDurationMins(e.target.value)}
-            style={{ display: "block", padding: "0.4rem", width: "6rem" }}
-          />
-        </label>
-        <label>
-          Price
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            style={{ display: "block", padding: "0.4rem", width: "6rem" }}
-          />
-        </label>
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Adding…" : "Add service"}
-        </button>
-      </form>
+            <TextField select label="Resource" value={resourceId} onChange={(e) => setResourceId(e.target.value)} sx={{ minWidth: 180 }}>
+              {resources?.map((r) => (
+                <MenuItem key={r.id} value={r.id}>
+                  {r.name}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
+            <TextField
+              type="number"
+              label="Duration (min)"
+              value={durationMins}
+              onChange={(e) => setDurationMins(e.target.value)}
+              sx={{ minWidth: 140 }}
+              inputProps={{ min: 1 }}
+            />
+            <TextField
+              type="number"
+              label="Price"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              sx={{ minWidth: 120 }}
+              inputProps={{ min: 0, step: 0.01 }}
+            />
+            <Button type="submit" variant="contained" disabled={submitting} sx={{ whiteSpace: "nowrap" }}>
+              {submitting ? "Adding…" : "Add service"}
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
 
-      {ownServices.length === 0 && <p>No services yet.</p>}
+      {ownServices.length === 0 && <Alert severity="info">No services yet.</Alert>}
 
       {ownServices.length > 0 && (
-        <table cellPadding={8} style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
-              <th>Name</th>
-              <th>Duration</th>
-              <th>Price</th>
-              <th>Resource</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ownServices.map((service) =>
-              editingId === service.id ? (
-                <tr key={service.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td>
-                    <input value={editName} onChange={(e) => setEditName(e.target.value)} />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min="1"
-                      value={editDuration}
-                      onChange={(e) => setEditDuration(e.target.value)}
-                      style={{ width: "5rem" }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
-                      style={{ width: "5rem" }}
-                    />
-                  </td>
-                  <td>{service.resource.name}</td>
-                  <td style={{ display: "flex", gap: "0.5rem" }}>
-                    <button type="button" onClick={() => saveEdit(service.id)}>
-                      Save
-                    </button>
-                    <button type="button" onClick={() => setEditingId(null)}>
-                      Cancel
-                    </button>
-                  </td>
-                </tr>
-              ) : (
-                <tr key={service.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td>{service.name}</td>
-                  <td>{service.durationMins} min</td>
-                  <td>${service.price}</td>
-                  <td>{service.resource.name}</td>
-                  <td style={{ display: "flex", gap: "0.5rem" }}>
-                    <button type="button" onClick={() => startEdit(service)}>
-                      Edit
-                    </button>
-                    <button type="button" onClick={() => handleDelete(service.id)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
+        <TableContainer component={Paper} variant="outlined">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Duration</TableCell>
+                <TableCell>Price</TableCell>
+                <TableCell>Resource</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {ownServices.map((service) =>
+                editingId === service.id ? (
+                  <TableRow key={service.id}>
+                    <TableCell>
+                      <TextField size="small" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={editDuration}
+                        onChange={(e) => setEditDuration(e.target.value)}
+                        sx={{ width: 90 }}
+                        inputProps={{ min: 1 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        sx={{ width: 90 }}
+                        inputProps={{ min: 0, step: 0.01 }}
+                      />
+                    </TableCell>
+                    <TableCell>{service.resource.name}</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" variant="contained" onClick={() => saveEdit(service.id)}>
+                          Save
+                        </Button>
+                        <Button size="small" onClick={() => setEditingId(null)}>
+                          Cancel
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow key={service.id} hover>
+                    <TableCell sx={{ fontWeight: 500 }}>{service.name}</TableCell>
+                    <TableCell>{service.durationMins} min</TableCell>
+                    <TableCell>${service.price}</TableCell>
+                    <TableCell>{service.resource.name}</TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" onClick={() => startEdit(service)}>
+                          Edit
+                        </Button>
+                        <Button size="small" color="error" onClick={() => handleDelete(service.id)}>
+                          Delete
+                        </Button>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                )
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
-    </div>
+    </Stack>
   );
 }
