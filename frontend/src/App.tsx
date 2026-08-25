@@ -4,10 +4,11 @@ import ServicesPage from "./pages/ServicesPage";
 import BookPage from "./pages/BookPage";
 import FindBookingPage from "./pages/FindBookingPage";
 import BookingDetailsPage from "./pages/BookingDetailsPage";
+import CheckInPage from "./pages/CheckInPage";
+import QueuePage from "./pages/QueuePage";
 
-// App is now a layout shell + router, not a page itself. Adding a new screen
-// (check-in, admin) later means adding a <Route> here and a page in src/pages/,
-// not rewriting this file.
+// App is now a layout shell + router, not a page itself. Adding a new screen later means
+// adding a <Route> here and a page in src/pages/, not rewriting this file.
 export default function App() {
   const linkStyle = ({ isActive }: { isActive: boolean }) => ({
     marginRight: "1rem",
@@ -15,7 +16,7 @@ export default function App() {
   });
 
   return (
-    <main style={{ fontFamily: "sans-serif", padding: "2rem", maxWidth: 640 }}>
+    <main style={{ fontFamily: "sans-serif", padding: "2rem", maxWidth: 800 }}>
       <nav style={{ marginBottom: "1.5rem" }}>
         <NavLink to="/" style={linkStyle} end>
           Home
@@ -29,6 +30,12 @@ export default function App() {
         <NavLink to="/find-booking" style={linkStyle}>
           Find Booking
         </NavLink>
+        <NavLink to="/checkin" style={linkStyle}>
+          Check-in
+        </NavLink>
+        <NavLink to="/queue" style={linkStyle}>
+          Queue
+        </NavLink>
       </nav>
 
       <Routes>
@@ -37,6 +44,8 @@ export default function App() {
         <Route path="/book" element={<BookPage />} />
         <Route path="/find-booking" element={<FindBookingPage />} />
         <Route path="/bookings/:bookingRef" element={<BookingDetailsPage />} />
+        <Route path="/checkin" element={<CheckInPage />} />
+        <Route path="/queue" element={<QueuePage />} />
       </Routes>
     </main>
   );

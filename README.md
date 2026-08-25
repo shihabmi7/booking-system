@@ -5,7 +5,7 @@ wired together with a health-check call so you can confirm both apps and the dat
 
 See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
 
-## Current status: Phase 1 ✅ done. Phase 2 ✅ done. Phase 3 ✅ done. Starting Phase 4.
+## Current status: Phase 1 ✅ done. Phase 2 ✅ done. Phase 3 ✅ done. Phase 4 ✅ done. Starting Phase 5.
 
 ### What's done so far
 - **Phase 1:** Backend (Express+TS) and frontend (React+TS/Vite) scaffolded and wired end-to-end
@@ -31,15 +31,25 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   New endpoints: `GET/POST /api/holidays`, `DELETE /api/holidays/:id`, `GET /api/resources`,
   `PATCH /api/resources/:id` (all unauthenticated for now — will be gated in Phase 5). `GET /api/slots`
   response shape changed from a bare array to `{ slots, note }`; frontend updated to match.
+- **Phase 4 (backend):** QR codes generated on demand (`services/qrCode.ts`, encodes the raw
+  `bookingRef`, returned as `qrCode` in booking create/lookup responses — nothing stored in the
+  DB). An explicit state machine (`services/bookingStateMachine.ts`) governs status changes.
+  `POST /api/bookings/:bookingRef/checkin` (the QR-scan/manual endpoint, returns `isLate`),
+  `.../no-show`, `.../complete` for staff-driven transitions. `GET /api/queue?resourceId&date`
+  is the staff "who's here / who's next" view.
+- **Phase 4 (frontend):** `BookingDetailsPage` shows the QR image while a booking is still
+  `BOOKED`. `/checkin` — staff manual-entry check-in form. `/queue` — resource + date picker
+  with inline Check In / No-Show / Complete buttons per booking.
 - Troubleshooting resolved along the way: fixed a wrong-directory `npm install`, a port-5432 conflict
   with an existing Postgres container, created `booking_user`/`booking_db` inside that container,
-  granted `booking_user` `CREATEDB` so Prisma's shadow database could be created, and recovered from
-  an accidental empty GitHub Desktop repo that shadowed the real one.
+  granted `booking_user` `CREATEDB` so Prisma's shadow database could be created, recovered from
+  an accidental empty GitHub Desktop repo that shadowed the real one, and fixed a duplicate-data
+  bug caused by re-running the (previously non-idempotent) seed script.
 
-### What's next — Phase 4: QR check-in
-- Generate a QR code (encoding the bookingRef) on booking confirmation.
-- Check-in endpoint: mark `checkedInAt`/`checkInMethod`, flag late arrivals.
-- Staff-facing "who's here / who's next" queue view.
+### What's next — Phase 5: Auth & roles
+- JWT-based auth for staff/admin.
+- Gate the currently-open holiday/hours/check-in/queue endpoints behind it.
+- Role-based access (admin vs staff).
 
 ## Prerequisites
 - Node.js 18+ and npm
@@ -91,11 +101,14 @@ booking-system/
 │   ├── src/routes/health.ts   # GET /api/health
 │   ├── src/routes/services.ts # GET /api/services
 │   ├── src/routes/slots.ts    # GET /api/slots
-│   ├── src/routes/bookings.ts # POST /api/bookings, GET /api/bookings/:bookingRef
+│   ├── src/routes/bookings.ts # POST /api/bookings, GET .../:bookingRef, POST .../checkin|no-show|complete
 │   ├── src/routes/holidays.ts # GET/POST /api/holidays, DELETE /api/holidays/:id
 │   ├── src/routes/resources.ts # GET /api/resources, PATCH /api/resources/:id
+│   ├── src/routes/queue.ts    # GET /api/queue — staff "who's here/next" view
 │   ├── src/services/slotGenerator.ts # pure function: working hours -> candidate slots
 │   ├── src/services/availability.ts  # candidates minus bookings minus holidays/closed days
+│   ├── src/services/qrCode.ts # generates a QR data URL from a bookingRef
+│   ├── src/services/bookingStateMachine.ts # allowed BookingStatus transitions
 │   └── src/db/prisma.ts       # shared Prisma Client instance
 ├── postman/booking-system.postman_collection.json # importable API test collection
 └── frontend/
@@ -105,9 +118,11 @@ booking-system/
     ├── src/pages/ServicesPage.tsx # "/services" — real seeded data from GET /api/services
     ├── src/pages/BookPage.tsx  # "/book" — the booking wizard
     ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form
-    └── src/pages/BookingDetailsPage.tsx # "/bookings/:bookingRef" — booking details
+    ├── src/pages/BookingDetailsPage.tsx # "/bookings/:bookingRef" — booking details + QR
+    ├── src/pages/CheckInPage.tsx        # "/checkin" — staff manual check-in form
+    └── src/pages/QueuePage.tsx          # "/queue" — staff day view with action buttons
 ```
 
 ## Next steps
-Phase 4: QR code generation, a check-in endpoint, and a staff-facing queue view. Full plan
-in the roadmap doc.
+Phase 5: JWT auth for staff/admin, then gate the currently-open admin-style endpoints
+behind it. Full plan in the roadmap doc.

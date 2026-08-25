@@ -8,11 +8,12 @@ type BookingDetails = {
   startTime: string;
   service: { name: string; durationMins: number; price: string };
   resource: { name: string; business: { name: string } };
+  qrCode: string; // base64 PNG data URL, generated fresh on every fetch
 };
 
 // Shown two ways: redirected here right after a successful booking (BookPage), or via
-// manual lookup (FindBookingPage). Same URL shape ("/bookings/:bookingRef") that Phase 4's
-// QR check-in will scan directly into.
+// manual lookup (FindBookingPage). Same URL shape ("/bookings/:bookingRef") a real QR scan
+// would link straight into — the QR image below encodes exactly this bookingRef.
 export default function BookingDetailsPage() {
   const { bookingRef } = useParams<{ bookingRef: string }>();
   const [booking, setBooking] = useState<BookingDetails | null>(null);
@@ -46,18 +47,33 @@ export default function BookingDetailsPage() {
       {!error && !booking && <p>Loading…</p>}
 
       {booking && (
-        <ul>
-          <li>Reference: {booking.bookingRef}</li>
-          <li>Status: {booking.status}</li>
-          <li>Customer: {booking.customerName}</li>
-          <li>
-            Service: {booking.service.name} ({booking.service.durationMins} min, ${booking.service.price})
-          </li>
-          <li>
-            Provider: {booking.resource.name}, {booking.resource.business.name}
-          </li>
-          <li>Time: {new Date(booking.startTime).toLocaleString()}</li>
-        </ul>
+        <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
+          <ul>
+            <li>Reference: {booking.bookingRef}</li>
+            <li>Status: {booking.status}</li>
+            <li>Customer: {booking.customerName}</li>
+            <li>
+              Service: {booking.service.name} ({booking.service.durationMins} min, ${booking.service.price})
+            </li>
+            <li>
+              Provider: {booking.resource.name}, {booking.resource.business.name}
+            </li>
+            <li>Time: {new Date(booking.startTime).toLocaleString()}</li>
+          </ul>
+
+          {booking.status === "BOOKED" && (
+            <div>
+              <p>Show this QR code at check-in:</p>
+              <img
+                src={booking.qrCode}
+                alt={`QR code for booking ${booking.bookingRef}`}
+                width={180}
+                height={180}
+                style={{ border: "1px solid #ccc" }}
+              />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

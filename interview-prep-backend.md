@@ -197,4 +197,49 @@ just applied to a setup script instead of an API endpoint.
 
 ---
 
-## Phase 4 — (not started yet)
+## Phase 4 — QR check-in
+
+**Q: Why is the QR code generated on every request instead of once and stored?**
+A: The QR image is 100% derived from the `bookingRef` — given the same string, `QRCode.toDataURL()`
+always produces the same image. Storing it would mean keeping a copy of data that's fully
+reconstructable from data already in the database, which is redundant, and worse, it introduces a
+staleness risk: if the encoding logic ever changed, every stored QR would need to be regenerated
+and re-saved, whereas a derived value just reflects the new logic automatically on the next
+request. The tradeoff is CPU cost per request instead of storage — cheap enough here to not matter.
+
+**Q: What's a finite state machine, and why use one for booking status instead of just letting any route `update()` the status field directly?**
+A: A finite state machine defines every valid state and exactly which transitions between states
+are allowed — everything else is rejected by definition. `services/bookingStateMachine.ts`'s
+`ALLOWED_TRANSITIONS` table says `BOOKED` can become `CHECKED_IN`, `NO_SHOW`, or `CANCELLED`, but
+`CHECKED_IN` can only become `COMPLETED` — nothing can go "backwards" (e.g. `COMPLETED` back to
+`BOOKED`) or skip steps (e.g. `BOOKED` straight to `COMPLETED` without ever checking in). Without
+this, any route with database access could set any status, and a bug (or a malicious request) could
+put a booking into a nonsensical state, like completing a booking that was never checked in.
+
+**Q: Each state-changing route (`checkin`, `no-show`, `complete`) does its own `findUnique` +
+`canTransition` check before updating. Why not just try the update and see if it fails?**
+A: Because an invalid transition isn't a database error — `prisma.booking.update()` would happily
+change `COMPLETED` to `BOOKED` if asked to, since nothing in the schema itself encodes the state
+machine rules (that's an application-level concept, not something a column type or constraint can
+express in this case). Checking first means the API can return a clear `409` with a specific reason
+("Cannot complete a booking with status BOOKED") instead of either silently corrupting the state or
+crashing.
+
+**Q: What does the `isLate` flag mean, and why is it computed rather than stored?**
+A: `isLate` compares "now" against the booking's `startTime` plus a grace period — it's true if a
+still-`BOOKED` appointment's time has passed by more than 10 minutes with no check-in. It has to be
+computed at request time, not stored, because its value changes purely with the passage of time —
+no event happens at the exact moment a booking "becomes late," so there's nothing to trigger writing
+it to the database. This is different from `checkedInAt`, which is set once, at a specific real event.
+
+**Q: The no-show endpoint requires a staff member to manually mark it — why not have the system automatically mark bookings as no-show once they're late?**
+A: That's intentional, and deferred to Phase 6, not skipped. Automatically flagging something as
+*late* (informational) is very different from automatically changing its *status* to a terminal
+state like `NO_SHOW` (consequential) — a customer might arrive 12 minutes late and still be seen. A
+scheduled background sweep (Lambda + EventBridge in Phase 6) is a reasonable way to auto-mark
+no-shows after a longer, clearly-defined cutoff, but that's a deliberate policy decision for later,
+not something to bake into the check-in endpoint itself.
+
+---
+
+## Phase 5 — (not started yet)

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Booking System API",
-    "description": "Phase 1-3 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run 'List Services' before anything else, and 'List Available Slots' before creating a booking.",
+    "description": "Phase 1-4 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run 'List Services' before anything else, and 'List Available Slots' before creating a booking.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -15,7 +15,11 @@
     { "key": "businessId", "value": "" },
     { "key": "holidayId", "value": "" },
     { "key": "closedWeekdayDate", "value": "2026-08-28" },
-    { "key": "holidayDate", "value": "2026-08-29" }
+    { "key": "holidayDate", "value": "2026-08-29" },
+    { "key": "checkinBookingRef", "value": "" },
+    { "key": "checkinStartTime", "value": "" },
+    { "key": "noShowBookingRef", "value": "" },
+    { "key": "noShowStartTime", "value": "" }
   ],
   "item": [
     {
@@ -396,6 +400,247 @@
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const resource = pm.response.json();",
                   "pm.test('Working hours updated', () => pm.expect(resource.workingHoursStart).to.eql('10:00'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Check-in & Queue",
+      "item": [
+        {
+          "name": "Fresh Slots for Check-in Test",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
+            "description": "Re-fetches slots (in case earlier folders booked some) and saves the first open one as checkinStartTime."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Has at least one open slot', () => pm.expect(body.slots.length).to.be.above(0));",
+                  "if (body.slots.length > 0) {",
+                  "  pm.collectionVariables.set('checkinStartTime', body.slots[0].startTime);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Booking for Check-in Test",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{checkinStartTime}}\",\n  \"customerName\": \"Check-in Test Patient\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+            },
+            "description": "Auto-saves the bookingRef as checkinBookingRef (separate from the main 'bookingRef' variable so it doesn't collide with folder 2's booking). Response includes a qrCode field (base64 PNG data URL) — paste it into a browser address bar to see the actual QR image."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const booking = pm.response.json();",
+                  "pm.test('Response includes a qrCode data URL', () => pm.expect(booking.qrCode).to.include('data:image/png;base64'));",
+                  "pm.collectionVariables.set('checkinBookingRef', booking.bookingRef);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check In (valid)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/checkin",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"method\": \"qr\"\n}" },
+            "description": "Simulates a QR scan. Should succeed since the booking is currently BOOKED."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is now CHECKED_IN', () => pm.expect(pm.response.json().status).to.eql('CHECKED_IN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check In Again (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/checkin",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"method\": \"qr\"\n}" },
+            "description": "Same booking, already CHECKED_IN. The state machine should reject this transition."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Complete Booking",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/complete",
+            "description": "CHECKED_IN -> COMPLETED, a valid transition."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is now COMPLETED', () => pm.expect(pm.response.json().status).to.eql('COMPLETED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No-Show on Completed Booking (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/{{checkinBookingRef}}/no-show",
+            "description": "COMPLETED has no allowed outgoing transitions — proves the state machine rejects this."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fresh Slots for No-Show Test",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
+            "description": "Grabs another open slot (different from the one just booked/completed above) for the no-show scenario."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.slots.length > 0) {",
+                  "  pm.collectionVariables.set('noShowStartTime', body.slots[0].startTime);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Booking for No-Show Test",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{noShowStartTime}}\",\n  \"customerName\": \"No-Show Test Patient\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+            },
+            "description": "Auto-saves bookingRef as noShowBookingRef."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('noShowBookingRef', pm.response.json().bookingRef);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark No-Show",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/{{noShowBookingRef}}/no-show",
+            "description": "BOOKED -> NO_SHOW, a valid transition (staff manually marking a customer who never arrived)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is now NO_SHOW', () => pm.expect(pm.response.json().status).to.eql('NO_SHOW'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check In After No-Show (expect 409)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings/{{noShowBookingRef}}/checkin",
+            "description": "NO_SHOW has no allowed outgoing transitions — proves a customer can't check in after being marked a no-show."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 409 Conflict', () => pm.response.to.have.status(409));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Staff Queue for the Day",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/queue?resourceId={{resourceId}}&date={{date}}",
+            "description": "Should show both test bookings above: one COMPLETED, one NO_SHOW, plus anything else booked for resourceId on this date."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const queue = pm.response.json();",
+                  "pm.test('Queue includes the completed booking', () => pm.expect(queue.some(b => b.bookingRef === pm.collectionVariables.get('checkinBookingRef'))).to.be.true);",
+                  "pm.test('Queue includes the no-show booking', () => pm.expect(queue.some(b => b.bookingRef === pm.collectionVariables.get('noShowBookingRef'))).to.be.true);"
                 ]
               }
             }

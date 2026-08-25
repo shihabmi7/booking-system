@@ -69,13 +69,26 @@ Not originally scoped for a specific phase, added when it came up during Phase 3
 - Postman collection updated with a "4. Holidays & Hours" folder testing both closure types
   and the holiday-date unique constraint.
 
-### Phase 4 — QR check-in ← YOU ARE HERE
-- Generate QR code (encodes booking ID) on booking confirmation.
-- Check-in endpoint: lookup by booking ID, mark check-in timestamp, flag late/no-show.
-- Staff-facing "who's here / who's next" queue endpoint.
-- **Interview angle:** state machines (booking status transitions).
+### Phase 4 — QR check-in ✅ DONE
+- `services/qrCode.ts` — generates a QR code (base64 PNG data URL) encoding the raw
+  `bookingRef`, on demand rather than stored, since it's fully derived data. Included in
+  `POST /api/bookings` and `GET /api/bookings/:bookingRef` responses as `qrCode`.
+- `services/bookingStateMachine.ts` — explicit allowed-transitions table
+  (`BOOKED → CHECKED_IN/NO_SHOW/CANCELLED`, `CHECKED_IN → COMPLETED`) instead of letting any
+  route set any status.
+- `POST /api/bookings/:bookingRef/checkin` — the QR-scan/manual-entry endpoint. Validates the
+  transition, records `checkedInAt`/`checkInMethod`, returns `isLate` (10-minute grace period).
+- `POST /api/bookings/:bookingRef/no-show` and `.../complete` — staff-driven transitions.
+  An automated no-show sweep (no human involved) is deferred to Phase 6 (Lambda + EventBridge).
+- `GET /api/queue?resourceId&date` — staff "who's here / who's next" view for a resource's day,
+  each booking flagged `isLate` if still `BOOKED` past the grace period.
+- Frontend: `BookingDetailsPage` shows the QR image (as an `<img>` from the `qrCode` data URL)
+  while a booking is still `BOOKED`. `/checkin` — staff manual-entry check-in form. `/queue` —
+  resource + date picker showing every booking that day with inline Check In / No-Show /
+  Complete action buttons, calling the matching state-machine endpoint and refreshing.
+- **Interview angle:** state machines (booking status transitions), derived vs stored data.
 
-### Phase 5 — Auth & roles
+### Phase 5 — Auth & roles ← YOU ARE HERE
 - JWT-based auth for staff/admin; customers can act with just their booking ID (no login required for MVP).
 - Role-based access (admin vs staff).
 - **Interview angle:** authN vs authZ, JWT pitfalls, RBAC.

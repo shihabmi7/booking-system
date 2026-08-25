@@ -141,4 +141,30 @@ already be booked," which is worth saying differently than "the business is clos
 
 ---
 
-## Phase 4 — (not started yet)
+## Phase 4 — QR check-in
+
+**Q: The QR code is just rendered as `<img src={booking.qrCode} />`. What makes that work when `qrCode` is a string, not a file path?**
+A: `qrCode` is a data URL — a string that starts with `data:image/png;base64,` followed by the
+image's raw bytes encoded as base64 text. The `src` attribute of an `<img>` doesn't require an
+actual file or network request; a data URL is a complete, self-contained representation of the
+image that the browser decodes and renders directly. This is why the backend can generate it
+fresh on every request with no file storage involved — the whole image lives in the JSON response.
+
+**Q: `QueuePage` calls `refreshQueue()` after every check-in/no-show/complete action instead of updating the local state directly (e.g. finding the booking in the array and changing its status). Why the extra round trip?**
+A: Updating local state directly would require duplicating the server's logic on the client —
+what `isLate` becomes, what the new `status` is, whether the action even succeeded. Re-fetching
+the whole queue guarantees the UI reflects exactly what the server has, including the `isLate`
+calculation the server owns. It's a few hundred extra milliseconds for a staff-facing internal
+tool, which is a reasonable trade for not having two sources of truth that can drift apart.
+
+**Q: Why does `CheckInPage` treat a 404 (unknown booking reference) and a 409 (invalid state, e.g. already checked in) the same way in its error handling?**
+A: From the staff user's point of view, both are just "this didn't work, here's why" — the UI
+doesn't need to branch its behavior differently for the two cases, since it's not attempting any
+different recovery action for either (unlike `BookPage`'s 409 handling, which specifically
+refreshes the slot list). Reading the `error` message from the response body and displaying it
+directly is enough here; over-engineering distinct handling for every status code only pays off
+when the UI actually does something different in response.
+
+---
+
+## Phase 5 — (not started yet)
