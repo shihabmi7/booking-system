@@ -58,10 +58,20 @@ export async function getAvailableSlots(
     date,
   });
 
+  // "Available" means two things, not one: not already booked, AND not already in the past.
+  // The past-time check is a no-op for any future date (every candidate's startTime is
+  // already >= now), so this doesn't need a separate "is this today" branch — it just quietly
+  // does nothing on days where it can't possibly matter. Excluded from the list entirely
+  // rather than returned-but-flagged-disabled, same treatment as an already-booked slot below
+  // — one consistent rule for "what counts as bookable," not two different reasons rendered
+  // two different ways on the frontend.
+  const now = new Date();
+
   // Standard interval-overlap check: two ranges overlap if one starts before the other ends,
   // in both directions. Anything overlapping an existing (non-cancelled) booking is excluded.
   const available = candidates.filter(
     (slot) =>
+      slot.startTime > now &&
       !existingBookings.some(
         (booking) => slot.startTime < booking.endTime && booking.startTime < slot.endTime
       )

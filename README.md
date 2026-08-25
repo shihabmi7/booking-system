@@ -149,6 +149,19 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   `RequireCustomerAuth` now preserves `pathname + search` (previously pathname only), so an
   anonymous visitor who clicks "Book" for a specific service still lands back on that same
   pre-selected service after logging in, not a blank wizard.
+- **No booking an already-elapsed slot:** `services/availability.ts`'s `getAvailableSlots()`
+  — the single function both `GET /api/slots` and every booking-creation path
+  (`POST /api/bookings`, `POST /api/staff/bookings`) already run through — now also excludes
+  any candidate slot whose `startTime` has already passed, the same way it already excludes
+  already-booked ones (removed from the list, not shown-but-disabled). One change covers both
+  the picker (elapsed times just don't appear) and a real server-side guard (a stale or
+  replayed request trying to book one gets the same 409 "not available" double-booking already
+  triggers, so the existing refresh-on-409 frontend handling covers it with no new code).
+  `BookPage`/`StaffBookingPage`'s date pickers also gained `min={today}` so a past date can't
+  be selected at all. The Postman collection's `date` variable is now computed fresh by a
+  collection-level Pre-request Script (was a hardcoded string) so it doesn't silently start
+  returning empty slot lists once real-world "today" passes the date this collection was
+  authored on.
 
 ### What's next
 - **Phase 6: AWS deployment** — EC2 for the API, RDS for Postgres, S3 for QR images and

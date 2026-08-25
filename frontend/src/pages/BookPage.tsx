@@ -46,7 +46,11 @@ export default function BookPage() {
   const [services, setServices] = useState<Service[] | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState("");
 
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Also used as the date picker's min= below — today's already-elapsed slots get filtered
+  // server-side (see availability.ts), but there's no reason to let anyone pick yesterday at
+  // all and then have to explain that via an empty slot list.
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [closureNote, setClosureNote] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -180,6 +184,7 @@ export default function BookPage() {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: today }}
                 fullWidth
               />
             )}

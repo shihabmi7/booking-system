@@ -1,9 +1,38 @@
 {
   "info": {
     "name": "Booking System API",
-    "description": "Phase 1-6 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run '0. Auth' first (staff/admin AND customer login) before anything else, then 'List Services' before the booking flow, and 'List Available Slots' before creating a booking. Booking creation is now customer-auth-gated (Phase 6) — every booking-creation request needs {{customerToken}}, set by '0. Auth'.",
+    "description": "Phase 1-6 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run '0. Auth' first (staff/admin AND customer login) before anything else, then 'List Services' before the booking flow, and 'List Available Slots' before creating a booking. Booking creation is now customer-auth-gated (Phase 6) — every booking-creation request needs {{customerToken}}, set by '0. Auth'. The 'date' variable is recomputed automatically before every request (see the collection's Pre-request Script) so this collection keeps working no matter what day it's actually run on — see that script's comment for why.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Keeps the shared 'date' variable perpetually valid instead of a one-time hardcoded",
+          "// string. Without this, once real-world 'today' passes the date this collection was",
+          "// authored on, GET /api/slots would return zero slots for {{date}} for a totally",
+          "// unrelated reason to what most of these requests are actually testing: the new",
+          "// elapsed-slot filter in backend/src/services/availability.ts excludes any slot whose",
+          "// startTime has already passed, and a stale hardcoded date is 100% in the past by",
+          "// definition. Always picks a day strictly after today (never 'today' itself), so it",
+          "// can't flake based on what time of day the collection happens to run at either -- a",
+          "// same-day date could still legitimately have zero slots left if run late in the",
+          "// evening, which isn't the scenario these requests are meant to test. Skips Fridays",
+          "// to match the seeded resource's closedWeekdays: [5], so the day it lands on is",
+          "// guaranteed open.",
+          "const CLOSED_WEEKDAYS = [5];",
+          "const d = new Date();",
+          "d.setDate(d.getDate() + 1);",
+          "while (CLOSED_WEEKDAYS.includes(d.getDay())) {",
+          "  d.setDate(d.getDate() + 1);",
+          "}",
+          "pm.collectionVariables.set('date', d.toISOString().slice(0, 10));"
+        ]
+      }
+    }
+  ],
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:4000" },
     { "key": "adminEmail", "value": "admin@sunriseclinic.test" },
@@ -17,7 +46,7 @@
     { "key": "newResourceId", "value": "" },
     { "key": "resourceId", "value": "" },
     { "key": "serviceId", "value": "" },
-    { "key": "date", "value": "2026-08-25" },
+    { "key": "date", "value": "2026-08-25", "description": "Overwritten automatically before every request by the collection's Pre-request Script — this initial value is just a placeholder, never actually used." },
     { "key": "startTime", "value": "" },
     { "key": "bookingRef", "value": "" },
     { "key": "retryKey", "value": "demo-retry-key-001" },
@@ -596,7 +625,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
-            "description": "Public — no token needed (browsing slots doesn't require login, only booking one does). Uses resourceId/serviceId from 'List Services'. Change the 'date' collection variable if you want a different day. Response is {slots, note}. Auto-saves the first open slot's startTime."
+            "description": "Public — no token needed (browsing slots doesn't require login, only booking one does). Uses resourceId/serviceId from 'List Services'. The 'date' collection variable is auto-computed (always a future day) by the collection's Pre-request Script — see its comment. Response is {slots, note}. Auto-saves the first open slot's startTime."
           },
           "event": [
             {
@@ -607,6 +636,12 @@
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
                   "pm.test('Response has a slots array', () => pm.expect(body).to.have.property('slots'));",
+                  "pm.test('No returned slot has already elapsed', () => {",
+                  "  const now = Date.now();",
+                  "  body.slots.forEach((slot) => {",
+                  "    pm.expect(new Date(slot.startTime).getTime()).to.be.above(now);",
+                  "  });",
+                  "});",
                   "if (body.slots.length > 0) {",
                   "  pm.collectionVariables.set('startTime', body.slots[0].startTime);",
                   "} else if (body.note) {",

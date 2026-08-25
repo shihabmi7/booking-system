@@ -553,4 +553,60 @@ proves the specific record they're touching is actually theirs to touch.
 
 ---
 
+## Post-customer-accounts fix — No booking an elapsed slot
+
+**Q: The fix was one added condition, `slot.startTime > now`, inside `getAvailableSlots()`. Walk through why that single line is enough to also block `POST /api/bookings` and `POST /api/staff/bookings` from creating a past-time booking, given neither of those routes was touched at all.**
+A: Because neither of those routes computes availability itself — they both call
+`createBooking()` (`services/bookingCreation.ts`), which calls `getAvailableSlots()` to check
+"is this specific `startTime` actually one of the currently open slots" before ever calling
+`prisma.booking.create()`. Once an elapsed slot stops appearing in that function's returned
+list, the `isOpen` check in `bookingCreation.ts` (`availability.slots.some(slot => slot.startTime.getTime() === start.getTime())`)
+simply returns `false` for it, and the request gets rejected with the same 409 both paths
+already use for "someone else just took this slot." This is the exact payoff of the
+single-source-of-truth design already called out in `bookingCreation.ts`'s own comments: fixing
+"what counts as available" in one place fixed it for the picker, customer self-service booking,
+*and* staff-created bookings simultaneously, instead of needing the same past-time check
+copy-pasted into three places (and risking one of them being forgotten).
+
+**Q: Elapsed slots are removed from the `GET /api/slots` response entirely, rather than returned with something like `isPast: true` so the frontend could show them greyed-out for context. What was the reasoning for picking one over the other?**
+A: Consistency with how this same function already treats an already-booked slot — those
+were never returned-but-flagged either, they're just absent from the list. Introducing a
+second visual treatment (grey/disabled) for a *different* reason a slot might be unbookable
+(elapsed, vs. already taken) means the frontend now has two different rules for "why can't I
+click this," which is more UI complexity for questionable benefit — a customer doesn't
+generally need to see "9:00 AM was theoretically available three hours ago" while booking
+*right now*. Keeping one rule ("the list only ever contains genuinely bookable slots") keeps
+the picker's contract simple: everything shown is clickable, nothing shown needs an
+explanation for why it's greyed out.
+
+**Q: The past-time filter has no special-case for "is this today" — it just checks `slot.startTime > now` against every candidate, for every date. Why does that work correctly for a date next week too, without needing an `if (date === today)` branch?**
+A: Because `now` (`new Date()`, evaluated once per call) is always chronologically behind every
+candidate generated for a future date — a slot at 9:00 AM next Tuesday is never `<= now` today,
+so the filter is naturally a no-op for any date that hasn't arrived yet. It only ever actually
+removes anything when `date` refers to today (or, if someone requests a past date directly,
+removes literally every candidate, correctly returning an empty list). Writing it as a plain
+comparison instead of a conditional branch means one code path handles "today, partially
+elapsed," "future date, nothing elapsed," and "past date, everything elapsed" correctly without
+the three cases ever needing to be reasoned about separately — the comparison just happens to
+produce the right answer for all three because of what "now" and "not yet arrived" mean
+relative to each other.
+
+**Q: The Postman collection's `date` variable used to be a hardcoded string ("2026-08-25"). Why did this specific change force fixing that, when the collection worked fine with a hardcoded date before?**
+A: Before this change, a stale hardcoded date only caused a problem once it landed on the
+seeded resource's closed weekday or the seeded one-off holiday — rare, and the collection
+would otherwise happily return a full day of "open" slots for a date that had, in reality,
+already fully passed, because nothing was checking the date against the actual current time.
+That was already slightly wrong (an API returning slots for a day that already happened isn't
+meaningful), but it was silently wrong in a way that didn't break any test. Once
+`getAvailableSlots()` started checking the clock, that same stale hardcoded date became
+guaranteed-in-the-past relative to whenever the collection actually runs, and *every* slot for
+it now correctly returns empty — which cascades into every downstream request that assumed
+`{{date}}` would yield a bookable slot (create booking, check-in tests, no-show tests, walk-in
+tests). The fix — a collection-level pre-request script that recomputes `date` to the next
+non-Friday day, every run — makes the test data track "now" the same way the backend now does,
+instead of drifting away from reality the moment real time moves past whatever date the
+collection happened to be written on.
+
+---
+
 ## Phase 6 — (not started yet)

@@ -58,7 +58,10 @@ export default function StaffBookingPage() {
   const [services, setServices] = useState<Service[] | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState("");
 
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // Also used as the date picker's min= below — same reasoning as BookPage: today's elapsed
+  // slots are filtered server-side, but staff shouldn't be able to pick yesterday at all.
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [closureNote, setClosureNote] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -298,6 +301,7 @@ export default function StaffBookingPage() {
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: today }}
                 fullWidth
               />
             )}
