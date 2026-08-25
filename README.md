@@ -125,6 +125,22 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   on the same device. New `/staff/bookings/new` (`StaffBookingPage`) lets staff search for an
   existing customer or fall back to a plain name+phone walk-in, calling the new
   `POST /api/staff/bookings`; linked from the Queue page and the Dashboard's quick actions.
+- **Nav separation (post-customer-accounts fix):** the top nav used to be one shared list
+  (Home/Dashboard/Services/Book/Find booking/Check-in/Queue) shown to everyone, so a logged-in
+  customer saw staff-only links like Dashboard sitting right next to Book. Split into
+  `STAFF_NAV_ITEMS` (Dashboard, Queue, Check-in, Find booking, New booking) and
+  `CUSTOMER_NAV_ITEMS` (Home, Services, Book, My bookings, Profile); which one renders is
+  driven by whether a staff session exists, independent of whether a customer is also logged
+  in on the same device. `/find-booking` also moved from public to `RequireAuth` (staff-only)
+  as part of this — it's now a front-desk lookup tool, not a customer self-service page (that's
+  "My bookings" now). `HomePage` and `BookingDetailsPage`'s error state, which both used to
+  link to `/find-booking`, were updated to point at `/customer/bookings` instead.
+- **My bookings moved out of the account tabs (nav fix):** originally a third tab in
+  `CustomerAccountLayout` alongside Profile/Security. Booking history is what a customer came
+  to look at, not an account setting, so it's now its own standalone route
+  (`/customer/bookings`), not nested under `/customer/account/*`. Every link that pointed at
+  the old `/customer/account/bookings` path (top nav, the AppBar avatar menu, the mobile
+  drawer, `HomePage`, `BookingDetailsPage`'s error state) was updated to match.
 
 ### What's next
 - **Phase 6: AWS deployment** — EC2 for the API, RDS for Postgres, S3 for QR images and
@@ -238,7 +254,7 @@ booking-system/
     ├── src/pages/DashboardPage.tsx # "/dashboard" — business-wide daily stats (auth required)
     ├── src/pages/ServicesPage.tsx # "/services" — real seeded data from GET /api/services
     ├── src/pages/BookPage.tsx  # "/book" — the booking wizard (customer login required)
-    ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form
+    ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form (staff-only, auth required)
     ├── src/pages/BookingDetailsPage.tsx # "/bookings/:bookingRef" — booking details + QR
     ├── src/pages/CheckInPage.tsx        # "/checkin" — staff manual check-in form (auth required)
     ├── src/pages/QueuePage.tsx          # "/queue" — staff day view with action buttons (auth required)
@@ -248,10 +264,10 @@ booking-system/
     │   ├── CustomerLoginPage.tsx     # "/customer/login"
     │   ├── CustomerForgotPasswordPage.tsx # "/customer/forgot-password"
     │   ├── CustomerResetPasswordPage.tsx  # "/customer/reset-password"
-    │   ├── CustomerAccountLayout.tsx      # "/customer/account" shell — Profile/Bookings/Security tabs + <Outlet/>
+    │   ├── CustomerAccountLayout.tsx      # "/customer/account" shell — Profile/Security tabs + <Outlet/>
     │   ├── CustomerProfilePage.tsx        # "/customer/account/profile" — name/phone + picture upload
-    │   ├── CustomerBookingsPage.tsx       # "/customer/account/bookings" — own booking history
-    │   └── CustomerSecurityPage.tsx       # "/customer/account/security" — change password
+    │   ├── CustomerSecurityPage.tsx       # "/customer/account/security" — change password
+    │   └── CustomerBookingsPage.tsx       # "/customer/bookings" — standalone, own booking history (not an account tab)
     └── src/pages/admin/
         ├── AdminLayout.tsx      # "/admin" shell — Resources/Services/Holidays/Hours sub-nav + <Outlet/>
         ├── ResourcesAdminPage.tsx # "/admin/resources" — create a new resource (admin only)

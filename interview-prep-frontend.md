@@ -441,4 +441,56 @@ a device like this.
 
 ---
 
+## Post-customer-accounts fix — Nav separation
+
+**Q: The bug report was "I logged in as a customer and found Dashboard [in the menu]." `RequireAuth` already blocks a customer from actually loading `/dashboard` — so was this really a bug, or just a rough edge?**
+A: It was a real bug, just not a security one. `RequireAuth` is the backstop that prevents
+unauthorized *access* — it does its job correctly regardless of what's in the nav. The bug was
+in a different layer: the nav bar was *offering* a link that it already knew would fail for
+this user. A single shared `NAV_ITEMS` array rendered to everyone regardless of `user`/
+`customer` state, so a customer saw Dashboard, Check-in, Queue, and Find booking sitting right
+next to Book — all of which would bounce them straight to `/staff/login` if clicked. Security
+and usability are separate concerns that both matter: the route guard means nothing bad
+*happens* if you click the wrong link, but a menu full of links that don't work for you is
+still a broken menu. The fix was splitting into `STAFF_NAV_ITEMS`/`CUSTOMER_NAV_ITEMS` and
+picking the right one, not touching `RequireAuth` at all — the two layers needed separate
+fixes because they were never the same bug.
+
+**Q: Which nav renders is decided by `user` (the staff session) alone — `user ? STAFF_NAV_ITEMS : CUSTOMER_NAV_ITEMS` — not by `customer`. Why does a logged-in *customer* not get any say in which nav shows, on a device where staff also happens to be logged in?**
+A: Because the question the nav is answering is "who's operating this device," not "who's
+logged in" — and on a shared front-desk tablet, those can be different people at once. If a
+staff member is running the front desk (their session exists), the practical, high-frequency
+need is Dashboard/Queue/Check-in — a customer who also happens to have a session open on that
+same browser (e.g. they logged in earlier to show staff their booking) isn't the one deciding
+what the front-desk tablet's primary menu is for. That customer isn't stranded, though: the
+customer avatar/menu in the AppBar corner is a separate, always-present UI element (not part of
+`navItems` at all) that still exposes My bookings/Profile/Log out regardless of which nav mode
+is showing — see `CustomerAuthContext`'s header comment on why the two identity slots are kept
+fully independent rather than one merged "who's logged in" indicator.
+
+**Q: Fixing the nav didn't fully fix the underlying issue for `/find-booking` — why did that route also need `<RequireAuth>` added, when hiding it from the customer nav already stops a customer from being *offered* the link?**
+A: Because removing a link from a menu only changes what's discoverable, not what's reachable —
+anyone who already knows or guesses the URL `/find-booking` could still load it, type in any
+booking reference, and see that booking's details (name, service, time). That's the general
+principle that access control has to live at the route/data layer, not the navigation layer;
+navigation is a convenience for people who are already allowed to be somewhere, never the thing
+enforcing who's allowed. This project already had the right pattern available
+(`<RequireAuth>` wrapping `<Route element={...}>`, used for `/checkin` and `/queue`) — the nav
+change alone would have been "security through obscurity," which is exactly the failure mode
+this fix was meant to close, not just relocate.
+
+**Q: `HomePage` and `BookingDetailsPage`'s error state both used to link to `/find-booking`. Gating that route broke both of them silently (no compile error) — why didn't `tsc` catch this, and what's the general lesson?**
+A: TypeScript checks that `to="/find-booking"` is a valid string prop for `<Link>` — it has no
+concept of "is this route still reachable by an anonymous visitor," because that's a runtime
+routing/access-control fact, not a type. This is the same category of gap already named
+elsewhere in this project's notes (e.g. the `signToken` cast that only surfaced once real
+`@types` were installed): a clean `tsc --noEmit` run means the code is internally consistent,
+not that it's behaviorally correct. Catching "this link now points at a page that will reject
+the person clicking it" requires either manually reasoning through every route whose auth
+requirements just changed (what happened here, by grepping for the changed path across the
+codebase) or an end-to-end/integration test that actually clicks through the flow — a purely
+type-level check was never going to catch it.
+
+---
+
 ## Phase 6 — (not started yet)

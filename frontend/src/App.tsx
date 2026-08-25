@@ -56,14 +56,27 @@ import StaffBookingPage from "./pages/StaffBookingPage";
 
 type NavItem = { to: string; label: string; end?: boolean };
 
-const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Home", end: true },
+// Two separate menus, not one shared list filtered down — a customer should never even see
+// Dashboard/Queue/Check-in/Find booking as options (RequireAuth already blocked actually
+// reaching them, but offering a link that just bounces you to a staff login screen is a menu
+// bug, not a security one). Which list renders is driven by the staff session only (see
+// navItems below) — that's the "who's operating this device" question, independent of
+// whether a customer also happens to be logged in on the same browser (the customer identity
+// slot in the corner stays available either way, see the avatar/drawer sections below).
+const STAFF_NAV_ITEMS: NavItem[] = [
   { to: "/dashboard", label: "Dashboard" },
+  { to: "/queue", label: "Queue" },
+  { to: "/checkin", label: "Check-in" },
+  { to: "/find-booking", label: "Find booking" },
+  { to: "/staff/bookings/new", label: "New booking" },
+];
+
+const CUSTOMER_NAV_ITEMS: NavItem[] = [
+  { to: "/", label: "Home", end: true },
   { to: "/services", label: "Services" },
   { to: "/book", label: "Book" },
-  { to: "/find-booking", label: "Find booking" },
-  { to: "/checkin", label: "Check-in" },
-  { to: "/queue", label: "Queue" },
+  { to: "/customer/bookings", label: "My bookings" },
+  { to: "/customer/account/profile", label: "Profile" },
 ];
 
 // App is now a layout shell + router, not a page itself. Adding a new screen later means
@@ -84,8 +97,15 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [customerMenuAnchor, setCustomerMenuAnchor] = useState<null | HTMLElement>(null);
 
-  const navItems: NavItem[] =
-    user?.role === "ADMIN" ? [...NAV_ITEMS, { to: "/admin/resources", label: "Admin" }] : NAV_ITEMS;
+  // Staff nav takes priority whenever a staff session exists — that's the "front desk is
+  // running this device" case. Otherwise (no staff logged in, whether or not a customer is)
+  // show the customer nav, so an anonymous visitor sees exactly what a logged-in customer
+  // sees minus the account-specific links, rather than a third, different menu.
+  const navItems: NavItem[] = user
+    ? user.role === "ADMIN"
+      ? [...STAFF_NAV_ITEMS, { to: "/admin/resources", label: "Admin" }]
+      : STAFF_NAV_ITEMS
+    : CUSTOMER_NAV_ITEMS;
 
   function isActive(item: NavItem) {
     return item.end ? location.pathname === item.to : location.pathname.startsWith(item.to);
@@ -145,7 +165,7 @@ export default function App() {
                 >
                   <MenuItem
                     component={RouterLink}
-                    to="/customer/account/bookings"
+                    to="/customer/bookings"
                     onClick={() => setCustomerMenuAnchor(null)}
                   >
                     <ListItemIcon><EventNoteIcon fontSize="small" /></ListItemIcon>
@@ -226,7 +246,7 @@ export default function App() {
                 <Button
                   size="small"
                   component={RouterLink}
-                  to="/customer/account/bookings"
+                  to="/customer/bookings"
                   onClick={() => setDrawerOpen(false)}
                 >
                   My bookings
@@ -332,7 +352,14 @@ export default function App() {
               </RequireCustomerAuth>
             }
           />
-          <Route path="/find-booking" element={<FindBookingPage />} />
+          <Route
+            path="/find-booking"
+            element={
+              <RequireAuth>
+                <FindBookingPage />
+              </RequireAuth>
+            }
+          />
           <Route path="/bookings/:bookingRef" element={<BookingDetailsPage />} />
           <Route path="/staff/login" element={<StaffLoginPage />} />
           <Route path="/customer/register" element={<CustomerRegisterPage />} />
@@ -340,6 +367,14 @@ export default function App() {
           <Route path="/customer/login" element={<CustomerLoginPage />} />
           <Route path="/customer/forgot-password" element={<CustomerForgotPasswordPage />} />
           <Route path="/customer/reset-password" element={<CustomerResetPasswordPage />} />
+          <Route
+            path="/customer/bookings"
+            element={
+              <RequireCustomerAuth>
+                <CustomerBookingsPage />
+              </RequireCustomerAuth>
+            }
+          />
           <Route
             path="/customer/account"
             element={
@@ -350,7 +385,6 @@ export default function App() {
           >
             <Route index element={<Navigate to="profile" replace />} />
             <Route path="profile" element={<CustomerProfilePage />} />
-            <Route path="bookings" element={<CustomerBookingsPage />} />
             <Route path="security" element={<CustomerSecurityPage />} />
           </Route>
           <Route

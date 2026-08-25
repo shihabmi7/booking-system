@@ -7,13 +7,16 @@ import Box from "@mui/material/Box";
 
 const TABS = [
   { to: "/customer/account/profile", label: "Profile" },
-  { to: "/customer/account/bookings", label: "My bookings" },
   { to: "/customer/account/security", label: "Security" },
 ];
 
-// Shared shell for the /customer/account/* pages — same tabbed-shell pattern AdminLayout
-// established for /admin/*: one Tabs bar, one <Outlet/>, adding a fourth tab later is "add a
-// file + one <Route>", not restructuring this file.
+// Shared shell for the /customer/account/* pages — Profile and Security only. Booking history
+// used to be a third tab here, but it's a standalone top-level page now (/customer/bookings,
+// see App.tsx) rather than something nested inside "account settings" — bookings are what a
+// customer came here to look at, not a setting to configure, so it doesn't belong grouped with
+// Profile/Security just because a tabbed shell already existed. Same tabbed-shell pattern
+// AdminLayout established for /admin/*: one Tabs bar, one <Outlet/>, adding another settings
+// tab later is "add a file + one <Route>", not restructuring this file.
 export default function CustomerAccountLayout() {
   const location = useLocation();
   const currentTab = TABS.some((t) => t.to === location.pathname) ? location.pathname : TABS[0].to;

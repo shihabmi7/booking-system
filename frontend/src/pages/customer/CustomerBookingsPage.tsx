@@ -33,7 +33,10 @@ const STATUS_COLOR: Record<string, ChipProps["color"]> = {
   CANCELLED: "default",
 };
 
-// /customer/account/bookings — GET /api/customer/bookings, scoped server-side to the logged-in
+// /customer/bookings — standalone top-level page, not nested under the /customer/account/*
+// settings shell (Profile/Security) — booking history is what a customer came here to look
+// at, not an account setting, so it gets its own place in the nav instead of living as a tab
+// alongside Profile. GET /api/customer/bookings is scoped server-side to the logged-in
 // customer's own id (no query params needed, unlike the staff queue which is resource+date
 // scoped) — most recent first.
 export default function CustomerBookingsPage() {

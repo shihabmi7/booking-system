@@ -71,7 +71,10 @@ export default function BookingDetailsPage() {
 
       {error && (
         <Alert severity="error">
-          {error}. <Link component={RouterLink} to="/find-booking">Try another reference</Link>.
+          {/* /find-booking is staff-only now (see App.tsx/FindBookingPage.tsx) — a customer
+              landing here on a bad reference is pointed at their own booking history instead,
+              which also works logged-out (RequireCustomerAuth bounces through login and back). */}
+          {error}. <Link component={RouterLink} to="/customer/bookings">View your bookings</Link>.
         </Alert>
       )}
 

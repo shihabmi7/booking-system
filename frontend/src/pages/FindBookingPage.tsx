@@ -7,9 +7,13 @@ import CardContent from "@mui/material/CardContent";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 
-// Simple lookup form: the customer types their booking reference (from a confirmation
-// email/QR code) and gets sent to the details page. This is the manual-entry counterpart
-// to Phase 4's QR scan — same destination page, different way of getting there.
+// Simple lookup form: type in a booking reference and get sent to the details page. Staff-only
+// (wrapped in <RequireAuth> in App.tsx as of the nav-separation cleanup) — a customer with an
+// account uses "My bookings" instead, and a walk-in with no account has staff look this up for
+// them (e.g. over the phone) rather than self-serving it. The underlying lookup,
+// GET /api/bookings/:bookingRef, is still a public endpoint (it also backs the QR-scan flow
+// and the post-booking confirmation redirect), so this page being staff-gated is a frontend
+// policy choice, not a backend restriction.
 export default function FindBookingPage() {
   const [bookingRef, setBookingRef] = useState("");
   const navigate = useNavigate();
@@ -27,7 +31,7 @@ export default function FindBookingPage() {
       <Card>
         <CardContent>
           <Stack spacing={2}>
-            <Typography color="text.secondary">Enter your booking reference to see the details.</Typography>
+            <Typography color="text.secondary">Enter a booking reference to see the details.</Typography>
             <Stack component="form" onSubmit={handleSubmit} direction={{ xs: "column", sm: "row" }} spacing={1.5}>
               <TextField
                 value={bookingRef}
