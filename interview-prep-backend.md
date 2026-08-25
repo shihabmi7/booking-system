@@ -429,4 +429,128 @@ already exists in the schema for a more correct version to eventually use.
 
 ---
 
+## Customer accounts (backend)
+
+**Q: There's already a `User` model with a `role` field. Why add a whole separate `Customer` model instead of just adding a `CUSTOMER` value to the existing `UserRole` enum?**
+A: `User` and `Customer` aren't the same kind of thing wearing a different label — they have
+different scopes and different lifecycles. Every `User` belongs to exactly one `businessId`
+because staff work for one business; a `Customer` deliberately has no `businessId` at all,
+because the same person books at multiple businesses with one account (or would, in a real
+multi-tenant version of this product). They also need different fields entirely — a customer
+needs `profilePictureUrl` and `emailVerifiedAt`, a staff account never would. Cramming both into
+one table means every query has to account for "this column is meaningless for half the rows,"
+and — the bigger risk — one shared login table makes it easy to accidentally write an endpoint
+that checks `role !== "ADMIN"` and unintentionally lets a customer through, or vice versa. Two
+separate tables, two separate JWT shapes, and two separate middlewares make that class of bug
+structurally harder to write, not just a matter of remembering a role check everywhere.
+
+**Q: Both staff and customer JWTs get signed and verified — what actually stops a customer's token from being accepted by a staff-only route, given that both are just valid signed JWTs from the same server?**
+A: A `kind` discriminator baked into the payload itself, checked at verify time, not just at
+authorization time. `signToken()` (staff) always sets `kind: "staff"`, `signCustomerToken()`
+always sets `kind: "customer"`, and — this is the important part — `verifyToken()` throws if
+`decoded.kind !== "staff"`, and `verifyCustomerToken()` throws symmetrically. So `requireAuth`
+(staff) doesn't just fail to find `role: "ADMIN"` on a customer token — it rejects the token
+entirely, before any role or ownership check ever runs. This is defense-in-depth: even if a
+future developer writes a new staff route and forgets to add `requireRole(...)`, a customer
+token still can't get past `requireAuth` in the first place, because the two token *kinds* are
+incompatible at the lowest layer, not just conventionally different by role name.
+
+**Q: Why hash the OTP code with bcrypt before storing it, instead of just storing the 6-digit code as plain text — it's not a password, and it expires in 10 minutes anyway?**
+A: Anyone who can read the `OtpCode` table (a database dump, a backup, an SQL-injection bug
+elsewhere, an overly-broad admin query) shouldn't be able to complete a password reset or email
+verification for any pending account just by reading a column. A 6-digit code is a much smaller
+search space than a password, but the storage risk is the same category of problem — "what can
+an attacker with read access to this table do" — so it gets the same treatment. The 10-minute
+expiry limits *how long* a leaked code would even be useful, but it doesn't reduce the value of
+hashing it in the first place; a leak in the *first* 9 minutes would still be exploitable if the
+code were stored in plain text.
+
+**Q: `verifyOtp` increments an `attempts` counter and rejects after 5 wrong guesses. What attack does that actually stop, and why isn't the 10-minute expiry alone enough?**
+A: It stops online brute-forcing — a 6-digit code has only 1,000,000 possibilities, which is
+small enough that a script submitting guesses as fast as the API allows could plausibly get
+through all of them well within a 10-minute window. Expiry limits the *time* an attacker has;
+the attempt limit limits how many *guesses* they get within that time, which is the actual
+bottleneck for a small keyspace like 6 digits (versus a password, where the keyspace itself is
+usually large enough that time alone is the meaningful constraint). Both protections address
+different dimensions of the same brute-force risk, which is why OTP systems generally need both
+and passwords usually only lean on the second (rate limiting) rather than a hard attempt cap.
+
+**Q: `createOtp` enforces a 60-second resend cooldown. What's actually being protected — the customer, or the server?**
+A: Both, for different reasons. Practically, it stops a customer from mashing "resend code" and
+ending up with five codes in flight, confused about which one is still valid (each new
+`createOtp` call invalidates the practical usefulness of the previous unconsumed code, since
+`verifyOtp` checks against whatever the latest row says). More importantly from a security
+angle, it rate-limits how fast an attacker (or a customer's own script) can generate fresh
+attempt budgets — without a cooldown, someone could call `resend-otp` in a tight loop, and each
+call resets the attempt-counting window, effectively defeating the 5-attempt cap from the
+previous question by just requesting a new code before running out of guesses on the old one.
+
+**Q: `Booking.customerId` is nullable. Walk through the two different reasons a booking might have `customerId: null`, and why the schema doesn't need a third field to distinguish them.**
+A: One: legacy bookings created before customer accounts existed at all, when `POST /api/bookings`
+was fully public and just accepted `customerName`/`customerPhone` in the body — those rows
+predate the `Customer` table entirely. Two: a walk-in booking created by staff via
+`POST /api/staff/bookings` for someone with no account, where the endpoint accepts
+`customerName`/`customerPhone` directly instead of a `customerId`, exactly the same shape as the
+old public endpoint used to. Both cases end up with an identical row shape — `customerId: null`,
+`customerName`/`customerPhone` populated as a plain snapshot — so there's no need to distinguish
+*which* reason a given null came from; the application never needs to ask "was this pre-accounts
+or a walk-in," only "does this booking have a linked account or not." That's a case where adding
+a distinguishing column would be tracking information the app has no actual use for.
+
+**Q: `createBooking()` got pulled out of the old `POST /api/bookings` handler into `services/bookingCreation.ts` as part of this change. What forced that, and what would have gone wrong without it?**
+A: Two entry points needed to create a booking with identical validation, idempotency, and
+race-condition handling, but different sources for who the customer is: `POST /api/bookings`
+(customer booking themselves — identity comes from `req.customer`, the logged-in token) and the
+new `POST /api/staff/bookings` (staff booking for someone else — identity comes from either a
+looked-up `Customer` row or raw request-body fields). Without extracting the shared function,
+the slot-availability check, the `idempotencyKey` lookup, and the `P2002`-to-409 handling would
+all need to be copy-pasted into the second route — and the two copies would inevitably drift
+over time as one gets a bug fix or a new check that the other doesn't. Pulling it into one
+function with a plain `{resourceId, serviceId, startTime, customerId, customerName, ...}` input
+shape means "how a booking gets created" has exactly one definition; the two routes only differ
+in *how they populate that input*, which is genuinely where they're supposed to differ.
+
+**Q: `POST /api/customer/register` returns `409 Conflict` with an explicit "email already exists" message — but `forgot-password`, `resend-otp`, and staff `login` all return the same generic message regardless of whether the account exists. Why is registration treated differently?**
+A: It's a deliberate, narrow exception to the anti-enumeration principle, not an inconsistency.
+The other endpoints protect against enumeration because a generic response costs the legitimate
+user nothing — someone who forgot their password doesn't need to know *why* forgot-password
+"worked," they just check their email either way. Registration is different: if it silently
+"succeeded" for an already-used email, the person would walk away thinking they have a new
+account, then be confused later when login fails or a verification email never arrives (because
+it went out for the *original* registration, not theirs) — the generic-response version is
+actively worse UX with no real attacker upside, since registration pages on virtually every
+consumer product already reveal "email taken" and attackers have other, easier ways to check if
+an email is registered somewhere (like just trying to register it themselves, which is exactly
+what this endpoint would tell them either way). The tradeoff was judged not worth the UX cost here.
+
+**Q: Profile pictures go through `multer` straight to local disk (`backend/uploads/`) rather than something like S3. Given this project's own roadmap already plans an S3 migration for Phase 6, why build the local-disk version at all instead of doing S3 from the start?**
+A: Sequencing the *hard problem* separately from the *storage location*. Getting file uploads
+working correctly at all — multipart parsing, MIME-type allowlisting, size limits, generating a
+non-colliding filename, serving it back out — is the actual learning goal here, and all of that
+logic is identical regardless of where the bytes end up. Local disk lets that get built and
+tested with zero new infrastructure (no AWS account, no bucket policy, no credentials to wire
+into `.env`) and stays fully within the sandboxed dev loop this project has used throughout.
+Swapping the storage backend later means changing what's inside `services/upload.ts`'s
+`multer.diskStorage` config for an S3-backed multer storage engine (`multer-s3` or similar) and
+changing how the URL is constructed — the route handlers in `routes/customer.ts` that call it
+don't need to change at all, since they only care about getting back a `profilePictureUrl`
+string. Building the S3 version first would have meant learning AWS credentials/IAM/bucket
+policy *and* multipart upload handling at the same time, with no way to isolate which one broke
+if something went wrong.
+
+**Q: `POST /api/staff/bookings` checks that the target `resourceId` belongs to the caller's own `businessId` before creating anything. Why does that check matter here specifically, given the resource ID has to come from somewhere the staff member already has access to (like their own dashboard)?**
+A: Never trust that a request body value is legitimate just because a legitimate client
+*usually* sends legitimate values — the check exists for the request that isn't legitimate, not
+the normal case. A staff member's JWT proves who they are and what business they work for, but
+`resourceId` in the POST body is still just a string the client controls; a malicious or
+compromised staff account (or a bug in a future frontend build) could submit a `resourceId`
+belonging to a *different* business entirely, and without this check, `createBooking()` would
+happily create a booking against someone else's resource — a cross-tenant data-integrity
+violation, not just an access-control nicety. It's the exact same ownership-check pattern used
+everywhere else in this codebase (holidays, services, resource-hours updates): a role check
+(`STAFF`/`ADMIN`) proves *what kind* of user this is, but only an explicit ownership comparison
+proves the specific record they're touching is actually theirs to touch.
+
+---
+
 ## Phase 6 — (not started yet)

@@ -5,6 +5,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { CustomerAuthProvider } from "./auth/CustomerAuthContext";
 import theme from "./theme";
 import "./index.css";
 
@@ -16,8 +17,14 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
+        {/* Two independent providers, not one combined "auth" provider — staff and customer
+            sessions are separate identity systems that happen to coexist in the same app (see
+            auth/CustomerAuthContext.tsx). Nesting order doesn't matter, since neither reads
+            from the other. */}
         <AuthProvider>
-          <App />
+          <CustomerAuthProvider>
+            <App />
+          </CustomerAuthProvider>
         </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>

@@ -26,9 +26,10 @@ enum UserRole {
   ADMIN
 }
 
-// A staff or admin login — NOT a customer account. Customers never authenticate; they prove
-// ownership of a booking just by knowing its bookingRef (see Booking model). This table only
-// exists for the people running the business.
+// A staff or admin login — NOT a customer account (see Customer model below, added in the
+// "customer accounts" phase). This table only exists for the people running the business.
+// Staff and customers are deliberately two separate identity systems that happen to share
+// infrastructure (JWT, bcrypt) — see services/auth.ts's `kind` field on the token payload.
 model User {
   id           String   @id @default(uuid())
   email        String   @unique
@@ -37,6 +38,48 @@ model User {
   businessId   String
   business     Business @relation(fields: [businessId], references: [id])
   createdAt    DateTime @default(now())
+}
+
+// A customer account — separate from User (staff/admin) entirely. Customers self-register,
+// verify their email via a one-time code (see OtpCode below), and log in to book. `email` is
+// the fixed, immutable identifier (never editable from the profile — see routes/customer.ts);
+// `name`/`phone`/`profilePictureUrl` are the only fields a customer can change about themselves.
+model Customer {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String
+  name              String
+  phone             String?
+  profilePictureUrl String?
+  // null = email not verified yet. Login and booking creation both require this to be set —
+  // enforced in routes/customer.ts and routes/bookings.ts respectively, not by the schema.
+  emailVerifiedAt   DateTime?
+  createdAt         DateTime  @default(now())
+  bookings          Booking[]
+  otpCodes          OtpCode[]
+}
+
+enum OtpPurpose {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+}
+
+// A one-time code sent to a customer's email (currently just console.log'd — see
+// services/otp.ts — until Phase 6 wires a real email provider). Used for both signup
+// verification and password reset, distinguished by `purpose`.
+model OtpCode {
+  id         String     @id @default(uuid())
+  customerId String
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  purpose    OtpPurpose
+  // Hashed with bcrypt, same approach as a password — the raw 6-digit code is never stored.
+  // Low entropy (1,000,000 possibilities) is compensated by expiresAt + attempts below, not
+  // by the hash alone, but there's no reason to store it in plaintext either.
+  codeHash   String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now())
 }
 
 // A doctor / stylist / dentist / chair — whatever the bookable "unit" is for a Business.
@@ -101,6 +144,16 @@ model Booking {
   // separate from the internal `id` so it can be regenerated/rotated without changing
   // the primary key relationships.
   bookingRef    String        @unique @default(uuid())
+  // Nullable — NOT a temporary migration shim. This stays valid indefinitely for two cases:
+  // (1) bookings made before the customer-accounts phase existed, and (2) staff-created
+  // walk-in bookings for someone with no account at all (see routes/staffBookings.ts).
+  // Every self-service customer booking (routes/bookings.ts) always sets this.
+  customerId    String?
+  customer      Customer?     @relation(fields: [customerId], references: [id])
+  // Snapshotted at booking time from the Customer's profile (or typed by staff for a
+  // walk-in) — deliberately NOT re-derived from the live Customer row on every read, so a
+  // later profile name change doesn't rewrite history. Same reasoning e-commerce order
+  // histories use for shipping names.
   customerName  String
   customerPhone String?
   customerEmail String?

@@ -5,9 +5,9 @@ import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 
 // Wrap any staff-facing page's <Route element={...}> with this. If there's no logged-in
-// user, redirect to /login instead of rendering the page (and letting its fetch calls fail
-// with a raw 401). Passes the page the user was trying to reach via location state, so
-// LoginPage can send them back there after a successful login instead of always to "/".
+// user, redirect to /staff/login instead of rendering the page (and letting its fetch calls
+// fail with a raw 401). Passes the page the user was trying to reach via location state, so
+// StaffLoginPage can send them back there after a successful login instead of always to "/".
 //
 // Optional `role` prop adds a second check on top of "is anyone logged in": is THIS role
 // allowed here. Reusing the same missing-auth vs wrong-role distinction the backend makes
@@ -25,7 +25,7 @@ export default function RequireAuth({
   const location = useLocation();
 
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/staff/login" replace state={{ from: location.pathname }} />;
   }
 
   if (role && user.role !== role) {

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Booking System API",
-    "description": "Phase 1-5 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run '0. Auth' first to get adminToken/staffToken, then 'List Services' before anything else, and 'List Available Slots' before creating a booking.",
+    "description": "Phase 1-6 endpoints for the appointment booking system. Requests are chained with collection variables via test scripts, so running them top to bottom in a folder auto-fills the next request's IDs. Run '0. Auth' first (staff/admin AND customer login) before anything else, then 'List Services' before the booking flow, and 'List Available Slots' before creating a booking. Booking creation is now customer-auth-gated (Phase 6) — every booking-creation request needs {{customerToken}}, set by '0. Auth'.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -28,7 +28,16 @@
     { "key": "checkinBookingRef", "value": "" },
     { "key": "checkinStartTime", "value": "" },
     { "key": "noShowBookingRef", "value": "" },
-    { "key": "noShowStartTime", "value": "" }
+    { "key": "noShowStartTime", "value": "" },
+    { "key": "customerEmail", "value": "postman-customer@sunriseclinic.test" },
+    { "key": "customerPassword", "value": "CustomerPass123!" },
+    { "key": "customerToken", "value": "" },
+    { "key": "customerId", "value": "" },
+    { "key": "otpCode", "value": "", "description": "OTP delivery is console-log-only in this project (see customer-accounts-plan.md) — after 'Register Customer' or 'Forgot Password (Customer)' runs, check the backend terminal for a line like '[OTP] EMAIL_VERIFY code for ...: 123456', paste that 6-digit code in here, then run the matching Verify/Reset request." },
+    { "key": "staffCustomerId", "value": "" },
+    { "key": "walkInStartTime", "value": "" },
+    { "key": "existingCustomerStartTime", "value": "" },
+    { "key": "walkInBookingRef", "value": "" }
   ],
   "item": [
     {
@@ -44,7 +53,7 @@
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
             },
-            "description": "Credentials come from the seed script (prisma/seed.ts) — run 'npm run seed' on the backend first. Auto-saves the JWT as adminToken for every request below that needs ADMIN access."
+            "description": "Credentials come from the seed script (prisma/seed.ts) — run 'npm run seed' on the backend first. Auto-saves the JWT as adminToken for every request below that needs ADMIN access. Note this is the STAFF login endpoint (/api/auth/login), separate from customer login below — the frontend serves this at /staff/login."
           },
           "event": [
             {
@@ -204,6 +213,129 @@
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const users = pm.response.json();",
                   "pm.test('Includes the newly created staff account', () => pm.expect(users.some(u => u.email === pm.collectionVariables.get('newStaffEmail'))).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Customer",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\",\n  \"name\": \"Postman Test Customer\",\n  \"phone\": \"+8801000000001\"\n}"
+            },
+            "description": "Public. Creates an UNVERIFIED customer account and sends a 6-digit OTP — since email delivery is console-log-only in this project (see customer-accounts-plan.md), check the backend terminal, copy the code, and set the 'otpCode' collection variable before running 'Verify Customer Email' below. If you've already registered this email in a previous run, this returns 409 — either change 'customerEmail' or skip to 'Login as Customer'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 or 409 (already registered)', () => pm.expect([201, 409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Customer Email (paste otpCode first)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/verify-otp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"code\": \"{{otpCode}}\"\n}"
+            },
+            "description": "Set the 'otpCode' collection variable from the backend console log first (see 'Register Customer'). On success, marks the account verified AND logs the customer in — auto-saves customerToken so you can skip straight to 'Get Customer Profile' below. If the account is already verified this returns 409 — that's fine, just run 'Login as Customer' instead."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('customerToken', body.token);",
+                  "  pm.collectionVariables.set('customerId', body.customer.id);",
+                  "}",
+                  "pm.test('Status is 200 or 409 (already verified)', () => pm.expect([200, 409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Customer",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+            },
+            "description": "Public, separate from staff login (/api/auth/login) — a customer token has kind: 'customer' and can never satisfy a staff-only route, even by accident. Requires the account to already be verified (run 'Register Customer' + 'Verify Customer Email' first if you haven't). Auto-saves customerToken/customerId, overwriting whatever 'Verify Customer Email' set."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('customerToken', body.token);",
+                  "pm.collectionVariables.set('customerId', body.customer.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as Customer with Wrong Password (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"WrongPassword!\"\n}"
+            },
+            "description": "Same generic message a nonexistent email would give — mirrors the staff login's anti-enumeration behavior."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Customer Profile (Me)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customer/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "description": "Confirms customerToken is valid and returns the profile shape the frontend uses (no passwordHash)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('No passwordHash leaked', () => pm.expect(pm.response.json()).to.not.have.property('passwordHash'));"
                 ]
               }
             }
@@ -464,7 +596,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
-            "description": "Public — no token needed (customer-facing). Uses resourceId/serviceId from 'List Services'. Change the 'date' collection variable if you want a different day. Response is {slots, note}. Auto-saves the first open slot's startTime."
+            "description": "Public — no token needed (browsing slots doesn't require login, only booking one does). Uses resourceId/serviceId from 'List Services'. Change the 'date' collection variable if you want a different day. Response is {slots, note}. Auto-saves the first open slot's startTime."
           },
           "event": [
             {
@@ -486,16 +618,41 @@
           ]
         },
         {
-          "name": "Create Booking",
+          "name": "Create Booking without Token (expect 401)",
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Postman Test Patient\",\n  \"customerPhone\": \"+8801000000000\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
             },
-            "description": "Public — no token needed (customers book without an account). Books the slot found by 'List Available Slots'. Auto-saves the returned bookingRef."
+            "description": "No Authorization header on purpose — as of Phase 6, booking a service requires a verified customer account. Proves requireCustomerAuth rejects anonymous requests instead of silently creating an anonymous booking like it used to pre-Phase-6."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Booking (as Customer)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/bookings",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+            },
+            "description": "Requires a customer token — run '0. Auth' (Register/Verify or Login as Customer) first. Notice there's no customerName/Phone/Email in the body anymore: those are pulled server-side from the logged-in customer's own profile, so a customer can't book 'as' someone else. Books the slot found by 'List Available Slots'. Auto-saves the returned bookingRef."
           },
           "event": [
             {
@@ -505,6 +662,7 @@
                 "exec": [
                   "pm.test('Status is 201', () => pm.response.to.have.status(201));",
                   "const booking = pm.response.json();",
+                  "pm.test('Booking is linked to the customer account', () => pm.expect(booking.customerId).to.eql(pm.collectionVariables.get('customerId')));",
                   "pm.collectionVariables.set('bookingRef', booking.bookingRef);"
                 ]
               }
@@ -541,12 +699,15 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Second Patient (should be rejected)\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
             },
-            "description": "Run this right after 'Create Booking' WITHOUT re-running 'List Available Slots' — it reuses the same startTime that's already booked, with a different (fresh) idempotencyKey. Should fail with 409, proving the @@unique([resourceId, startTime]) constraint works."
+            "description": "Run this right after 'Create Booking (as Customer)' WITHOUT re-running 'List Available Slots' — it reuses the same startTime that's already booked, with a different (fresh) idempotencyKey. Should fail with 409, proving the @@unique([resourceId, startTime]) constraint works."
           },
           "event": [
             {
@@ -565,10 +726,13 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Retry Test Patient\",\n  \"idempotencyKey\": \"{{retryKey}}\"\n}"
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"idempotencyKey\": \"{{retryKey}}\"\n}"
             },
             "description": "Run 'List Available Slots' again first to get a fresh, unbooked startTime, THEN run this request. Uses the fixed 'retryKey' collection variable instead of a random guid."
           },
@@ -590,10 +754,13 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"customerName\": \"Retry Test Patient\",\n  \"idempotencyKey\": \"{{retryKey}}\"\n}"
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{startTime}}\",\n  \"idempotencyKey\": \"{{retryKey}}\"\n}"
             },
             "description": "Identical body to 'Idempotent Retry - First Call', including the same idempotencyKey. Should return 200 with the SAME bookingRef instead of creating a duplicate or erroring."
           },
@@ -836,12 +1003,15 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{checkinStartTime}}\",\n  \"customerName\": \"Check-in Test Patient\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{checkinStartTime}}\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
             },
-            "description": "Public — customers create bookings without logging in. Auto-saves the bookingRef as checkinBookingRef. Response includes a qrCode field (base64 PNG data URL) — paste it into a browser address bar to see the actual QR image."
+            "description": "Requires a customer token (run '0. Auth' first). Auto-saves the bookingRef as checkinBookingRef. Response includes a qrCode field (base64 PNG data URL) — paste it into a browser address bar to see the actual QR image."
           },
           "event": [
             {
@@ -972,12 +1142,15 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/bookings",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{noShowStartTime}}\",\n  \"customerName\": \"No-Show Test Patient\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{noShowStartTime}}\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
             },
-            "description": "Public. Auto-saves bookingRef as noShowBookingRef."
+            "description": "Requires a customer token. Auto-saves bookingRef as noShowBookingRef."
           },
           "event": [
             {
@@ -1091,6 +1264,353 @@
             "method": "GET",
             "url": "{{baseUrl}}/api/dashboard/summary",
             "description": "No Authorization header on purpose — proves this business-data endpoint isn't accidentally public."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Customer Account Self-Service",
+      "item": [
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/resend-otp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\"\n}"
+            },
+            "description": "Public, always returns the same generic message whether or not the email exists or is already verified — prevents this endpoint from being used to enumerate accounts. If it actually sends a fresh code (unverified account, cooldown expired), check the backend console."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Profile (name/phone)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/customer/me",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Customer Renamed\",\n  \"phone\": \"+8801000000002\"\n}"
+            },
+            "description": "Only name and phone are editable — email is the fixed identifier the account is looked up by everywhere (login, OTP), so it's intentionally not part of this endpoint."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Name updated', () => pm.expect(pm.response.json().name).to.eql('Postman Customer Renamed'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{customerPassword}}\",\n  \"newPassword\": \"{{customerPassword}}\"\n}"
+            },
+            "description": "Requires being logged in AND re-proving the current password. Uses the same value for old and new here just so re-running this collection doesn't drift the password out from under 'customerPassword' — change 'newPassword' to something different to actually test it, then update the collection variable to match."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change Password with Wrong Current (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/change-password",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"DefinitelyWrong!\",\n  \"newPassword\": \"WouldBeNewPass123!\"\n}"
+            },
+            "description": "Proves a valid session token alone isn't enough to change the password — re-proving the current one is required, same principle as most account-security flows."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forgot Password (Customer)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/forgot-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\"\n}"
+            },
+            "description": "Public, same generic message whether or not the email exists. Sends a PASSWORD_RESET OTP — check the backend console, copy the code into 'otpCode', then run 'Reset Password' below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset Password (paste otpCode first)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/customer/reset-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"code\": \"{{otpCode}}\",\n  \"newPassword\": \"{{customerPassword}}\"\n}"
+            },
+            "description": "Set 'otpCode' from the backend console log first (see 'Forgot Password (Customer)'). Proves identity via the OTP instead of the (forgotten) password. Resets to the same 'customerPassword' value here so the rest of the collection keeps working unmodified."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List My Bookings",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/customer/bookings",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "description": "The logged-in customer's own booking history, most recent first — scoped by the customerId embedded in the token, never a query param. Should include the bookings created in '2. Booking Flow' and '5. Check-in & Queue' above."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Response is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Staff Walk-in Bookings",
+      "item": [
+        {
+          "name": "Search Customers (Staff)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/staff/customers?search=Postman",
+            "header": [{ "key": "Authorization", "value": "Bearer {{staffToken}}" }],
+            "description": "Requires STAFF or ADMIN login. Matches by name/email/phone (case-insensitive substring). Lets staff find the Postman test customer registered in '0. Auth' before booking on their behalf, instead of always typing a fresh walk-in. Auto-saves the first match's id as staffCustomerId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const customers = pm.response.json();",
+                  "if (customers.length > 0) {",
+                  "  pm.collectionVariables.set('staffCustomerId', customers[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search Customers as Customer (expect 401)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/staff/customers?search=Postman",
+            "header": [{ "key": "Authorization", "value": "Bearer {{customerToken}}" }],
+            "description": "A customer token has kind: 'customer', not 'staff' — requireAuth should reject it outright, proving a customer can never browse the customer directory even though the payload shapes are superficially similar."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('Status is 401 Unauthorized', () => pm.response.to.have.status(401));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fresh Slots for Walk-in Test",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
+            "description": "Public. Grabs an open slot for the no-account walk-in booking below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.slots.length > 0) {",
+                  "  pm.collectionVariables.set('walkInStartTime', body.slots[0].startTime);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Walk-in Booking (no account)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/staff/bookings",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{walkInStartTime}}\",\n  \"customerName\": \"Walk-in Patient (no account)\",\n  \"customerPhone\": \"+8801000000003\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+            },
+            "description": "STAFF/ADMIN only. Unlike POST /api/bookings, this trusts staff-typed contact info, since staff are vouching for the person in front of them. customerId is omitted, so the created booking's customerId stays null — same nullable field that covered pre-accounts legacy bookings, now doing double duty for walk-ins too."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const booking = pm.response.json();",
+                  "pm.test('customerId is null (no account)', () => pm.expect(booking.customerId).to.be.null);",
+                  "pm.collectionVariables.set('walkInBookingRef', booking.bookingRef);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fresh Slots for Existing-Customer Staff Booking",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/slots?resourceId={{resourceId}}&serviceId={{serviceId}}&date={{date}}",
+            "description": "Public. Grabs another open slot for the staff-booking-an-existing-customer scenario below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.slots.length > 0) {",
+                  "  pm.collectionVariables.set('existingCustomerStartTime', body.slots[0].startTime);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Booking for Existing Customer (Staff)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/staff/bookings",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{existingCustomerStartTime}}\",\n  \"customerId\": \"{{staffCustomerId}}\",\n  \"idempotencyKey\": \"{{$guid}}\"\n}"
+            },
+            "description": "STAFF/ADMIN only. Uses staffCustomerId from 'Search Customers (Staff)' — name/phone/email are looked up server-side from that customer's profile, not retyped, so this can't accidentally attach the booking to the wrong contact details. This booking should then show up in that customer's 'List My Bookings' (folder 7)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const booking = pm.response.json();",
+                  "pm.test('customerId matches the searched customer', () => pm.expect(booking.customerId).to.eql(pm.collectionVariables.get('staffCustomerId')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Staff Booking as Customer (expect 401)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/staff/bookings",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{customerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"serviceId\": \"{{serviceId}}\",\n  \"startTime\": \"{{existingCustomerStartTime}}\",\n  \"customerName\": \"Should be rejected\"\n}"
+            },
+            "description": "A customer token can't hit staff-only endpoints, even one that superficially looks like a booking-creation endpoint — kind: 'customer' fails requireAuth before requireRole is ever checked."
           },
           "event": [
             {

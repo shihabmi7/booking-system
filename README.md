@@ -5,7 +5,7 @@ wired together with a health-check call so you can confirm both apps and the dat
 
 See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
 
-## Current status: Phases 1-5 ✅ done. Starting Phase 6 (AWS deployment).
+## Current status: Phases 1-5 ✅ done. Customer accounts (backend + frontend) ✅ done. Phase 6 (AWS deployment) next.
 
 ### What's done so far
 - **Phase 1:** Backend (Express+TS) and frontend (React+TS/Vite) scaffolded and wired end-to-end
@@ -90,9 +90,46 @@ See `booking-system-roadmap.md` (in this folder) for the full 7-phase plan.
   logging in. `/` (Home) simplified to a public landing page with just "Book" and "Find my
   booking" — the old health-check status card is gone from there.
 
-### What's next — Phase 6: AWS deployment
-- EC2 for the API, RDS for Postgres, S3 for QR images, SES for confirmation emails.
-- Lambda + EventBridge for a scheduled no-show sweep.
+- **Customer accounts (backend, post-Phase 5 addition):** a second, fully separate identity
+  system alongside staff `User` — self-service `Customer` accounts, email + password, with
+  email verification via a 6-digit OTP (console-logged for now, not actually emailed — see
+  `customer-accounts-plan.md`). JWT payloads now carry a `kind: "staff" | "customer"`
+  discriminator so a customer token can never satisfy a staff-only route or vice versa, even if
+  a route forgets a role check. New routes under `/api/customer/*`: `register`, `verify-otp`,
+  `resend-otp`, `login`, `forgot-password`, `reset-password`, `change-password`, `GET/PATCH me`,
+  `POST me/picture` (multer, local disk — `/uploads/profile-pictures/`, 2MB limit,
+  jpeg/png/webp only), `GET bookings` (own booking history). **`POST /api/bookings` (customer
+  self-service booking) now requires a customer login** — booking without an account is no
+  longer possible, matching the "sign in to book" requirement. Staff can still book on behalf
+  of anyone via the new `POST /api/staff/bookings` (existing customer by id, or a nameless
+  walk-in) and `GET /api/staff/customers?search=` — both reuse the same shared
+  `services/bookingCreation.ts` the customer flow uses, so slot validation/idempotency logic
+  isn't duplicated a third time. **Needs a fresh `npx prisma migrate dev` (adds `Customer`,
+  `OtpCode`, `Booking.customerId`) and `npm install` in `backend/` (adds `multer`) before it
+  runs** — see Prerequisites below.
+
+- **Customer accounts (frontend, post-Phase 5 addition):** staff login moved to
+  `/staff/login`, full URL symmetry with the new `/customer/*` space. A second, fully
+  independent `CustomerAuthContext` (separate `localStorage` keys, separate token, separate
+  `useCustomerAuthFetch`/`RequireCustomerAuth` guard) — never unified with the staff
+  `AuthContext`, same reasoning as the backend's `kind`-based JWT split. New pages:
+  `/customer/register`, `/customer/verify` (OTP entry, auto-logs-in on success),
+  `/customer/login`, `/customer/forgot-password`, `/customer/reset-password`; a tabbed
+  `/customer/account/*` section (`CustomerAccountLayout`, mirroring `AdminLayout`'s pattern)
+  for Profile (name/phone + picture upload via `multer`), My bookings (own history), and
+  Security (change password). `BookPage` (`/book`) is now wrapped in `RequireCustomerAuth` —
+  the customer-info form is gone entirely, replaced by a "Booking as `<name>`" line pulled
+  from the logged-in profile, matching the backend no longer accepting customer fields in the
+  request body. The `AppBar` gained a second identity slot — an avatar/menu for the customer
+  session, kept visually distinct from the staff login chip, both able to be signed in at once
+  on the same device. New `/staff/bookings/new` (`StaffBookingPage`) lets staff search for an
+  existing customer or fall back to a plain name+phone walk-in, calling the new
+  `POST /api/staff/bookings`; linked from the Queue page and the Dashboard's quick actions.
+
+### What's next
+- **Phase 6: AWS deployment** — EC2 for the API, RDS for Postgres, S3 for QR images and
+  profile pictures (replacing local disk), SES for actually sending the OTP emails (replacing
+  console-log), Lambda + EventBridge for a scheduled no-show sweep.
 
 ## Prerequisites
 - Node.js 18+ and npm
@@ -109,24 +146,35 @@ This starts Postgres on `localhost:5432` with user `booking_user` / password `bo
 cd backend
 cp .env.example .env
 npm install
-npx prisma migrate dev --name add_users_auth
+npx prisma migrate dev --name add_customer_accounts
 npm run seed
 npm run dev
 ```
-`npm install` also generates the Prisma Client automatically. `prisma migrate dev` creates/updates the
-tables in Postgres from `schema.prisma` (re-run it whenever the schema changes — this one adds the new
-`User` table for Phase 5). `npm run seed` inserts one sample business/resource/services, a Friday weekly
-closure, one sample holiday, and two sample logins for testing:
+`npm install` also generates the Prisma Client automatically, and pulls in `multer` (profile
+picture uploads — new dependency for the customer-accounts feature). `prisma migrate dev`
+creates/updates the tables in Postgres from `schema.prisma` (re-run it whenever the schema
+changes — this one adds `Customer`, `OtpCode`, and `Booking.customerId`). `npm run seed` inserts
+one sample business/resource/services, a Friday weekly closure, one sample holiday, and two
+sample **staff** logins for testing:
 - **Admin:** `admin@sunriseclinic.test` / `AdminPass123!`
 - **Staff:** `staff@sunriseclinic.test` / `StaffPass123!`
+
+There's no seeded customer account — customers self-register via `POST /api/customer/register`
+(see the Postman collection's "0. Auth" folder, or the frontend once built). Since OTP delivery
+is console-log-only for now, watch the backend terminal for the verification code after
+registering.
 
 Backend runs on http://localhost:4000. Check it directly:
 - http://localhost:4000/api/health
 - http://localhost:4000/api/services
 - http://localhost:4000/api/slots?resourceId=...&serviceId=...&date=2026-08-25 (grab real IDs from `/api/services` first)
-- `/api/resources`, `/api/holidays`, `/api/queue` now require a login — use the Postman
-  collection's "0. Auth" folder to get a token, then send it as `Authorization: Bearer <token>`.
+- `/api/resources`, `/api/holidays`, `/api/queue` now require a **staff** login — use the
+  Postman collection's "0. Auth" folder to get a token, then send it as
+  `Authorization: Bearer <token>`.
 - Creating/editing services (`POST/PATCH/DELETE /api/services`) requires an ADMIN token specifically.
+- `POST /api/bookings` (customer self-service booking) now requires a **customer** login —
+  register + verify via `/api/customer/*` first. Staff booking on someone's behalf uses the
+  separate `POST /api/staff/bookings` instead, which takes a staff token.
 
 ## 3. Run the frontend
 ```
@@ -134,53 +182,76 @@ cd frontend
 npm install
 npm run dev
 ```
-Frontend runs on http://localhost:5173. Open it in a browser — it calls `/api/health`
-(proxied to the backend by Vite, see `vite.config.ts`) and shows API status, DB connection,
-and server time. If you see "Backend not reachable," make sure the backend is running.
+Frontend runs on http://localhost:5173. `/` is the public landing page; `/staff/login` is
+where staff/admin sign in (sample accounts above); `/customer/register` is where a customer
+creates an account (needed before `/book` will let them through — it's gated behind
+`RequireCustomerAuth`). If you see "Backend not reachable," make sure the backend is running.
 
 ## What's here
 ```
 booking-system/
 ├── docker-compose.yml         # Postgres for local dev
+├── customer-accounts-plan.md  # governing spec for the customer-accounts feature (13-step rollout)
 ├── backend/
-│   ├── prisma/schema.prisma   # Business/Resource/Service/Booking/User models
+│   ├── prisma/schema.prisma   # Business/Resource/Service/Booking/User/Customer/OtpCode models
 │   ├── prisma/seed.ts         # sample data + sample admin/staff logins
 │   ├── src/index.ts           # Express app entrypoint
 │   ├── src/routes/health.ts   # GET /api/health
 │   ├── src/routes/services.ts # GET /api/services (public), POST/PATCH/DELETE (admin)
 │   ├── src/routes/slots.ts    # GET /api/slots
-│   ├── src/routes/bookings.ts # POST /api/bookings, GET .../:bookingRef, POST .../checkin|no-show|complete
+│   ├── src/routes/bookings.ts # POST /api/bookings (customer auth), GET .../:bookingRef, POST .../checkin|no-show|complete (staff)
 │   ├── src/routes/holidays.ts # GET/POST /api/holidays, DELETE /api/holidays/:id
 │   ├── src/routes/resources.ts # GET/POST /api/resources, PATCH /api/resources/:id
 │   ├── src/routes/queue.ts    # GET /api/queue — staff "who's here/next" view
-│   ├── src/routes/auth.ts     # POST /api/auth/login, GET .../me, POST/GET .../users
+│   ├── src/routes/auth.ts     # POST /api/auth/login (staff), GET .../me, POST/GET .../users
 │   ├── src/routes/dashboard.ts # GET /api/dashboard/summary — business-wide daily stats
+│   ├── src/routes/customer.ts # /api/customer/* — register/verify/login/forgot/reset/change-password/me/bookings
+│   ├── src/routes/staffBookings.ts # /api/staff/customers (search), /api/staff/bookings (walk-ins + existing customers)
 │   ├── src/services/slotGenerator.ts # pure function: working hours -> candidate slots
 │   ├── src/services/availability.ts  # candidates minus bookings minus holidays/closed days
 │   ├── src/services/qrCode.ts # generates a QR data URL from a bookingRef
 │   ├── src/services/bookingStateMachine.ts # allowed BookingStatus transitions
-│   ├── src/services/auth.ts   # password hashing (bcrypt) + JWT sign/verify
-│   ├── src/middleware/auth.ts # requireAuth, requireRole(...roles) middleware
-│   ├── src/types/express.d.ts # adds req.user to Express's Request type
+│   ├── src/services/bookingCreation.ts # shared createBooking() used by both customer + staff booking routes
+│   ├── src/services/auth.ts   # staff password hashing (bcrypt) + JWT sign/verify (kind: "staff")
+│   ├── src/services/customerAuth.ts # customer JWT sign/verify (kind: "customer")
+│   ├── src/services/otp.ts    # OTP generate/verify — hashed, expiring, rate-limited (console-logged, not emailed)
+│   ├── src/services/upload.ts # multer config — profile picture uploads to local disk
+│   ├── src/middleware/auth.ts # requireAuth, requireRole(...roles) — staff
+│   ├── src/middleware/customerAuth.ts # requireCustomerAuth
+│   ├── src/types/express.d.ts # adds req.user (staff) and req.customer to Express's Request type
 │   └── src/db/prisma.ts       # shared Prisma Client instance
 ├── postman/booking-system.postman_collection.json # importable API test collection
 └── frontend/
     ├── src/theme.ts            # MUI theme — palette, shape, typography (single source of truth)
-    ├── src/App.tsx             # Layout shell + routes (MUI AppBar/Drawer nav, <Routes>)
-    ├── src/main.tsx            # React entrypoint — ThemeProvider + CssBaseline, BrowserRouter, AuthProvider
-    ├── src/auth/AuthContext.tsx # login/logout, token+user persisted to localStorage
-    ├── src/auth/RequireAuth.tsx # route guard — redirects to /login if logged out, or shows
+    ├── src/App.tsx             # Layout shell + routes (MUI AppBar/Drawer nav, dual identity slots, <Routes>)
+    ├── src/main.tsx            # React entrypoint — ThemeProvider + CssBaseline, BrowserRouter, AuthProvider + CustomerAuthProvider
+    ├── src/auth/AuthContext.tsx # staff login/logout, token+user persisted to localStorage
+    ├── src/auth/RequireAuth.tsx # staff route guard — redirects to /staff/login if logged out, or shows
     │                            #   "access denied" if logged in with the wrong role
-    ├── src/auth/useAuthFetch.ts # shared fetch wrapper: attaches token, logs out on 401
-    ├── src/pages/LoginPage.tsx # "/login" — staff/admin login form
+    ├── src/auth/useAuthFetch.ts # shared fetch wrapper: attaches staff token, logs out on 401
+    ├── src/auth/CustomerAuthContext.tsx # customer login/logout, separate token+localStorage keys from staff
+    ├── src/auth/RequireCustomerAuth.tsx # customer route guard — redirects to /customer/login
+    ├── src/auth/useCustomerAuthFetch.ts # customer equivalent of useAuthFetch
+    ├── src/pages/StaffLoginPage.tsx # "/staff/login" — staff/admin login form (renamed from /login)
+    ├── src/pages/StaffBookingPage.tsx # "/staff/bookings/new" — staff books for an existing customer or a walk-in
     ├── src/pages/HomePage.tsx  # "/" — public landing page (book / find booking CTAs)
     ├── src/pages/DashboardPage.tsx # "/dashboard" — business-wide daily stats (auth required)
     ├── src/pages/ServicesPage.tsx # "/services" — real seeded data from GET /api/services
-    ├── src/pages/BookPage.tsx  # "/book" — the booking wizard
+    ├── src/pages/BookPage.tsx  # "/book" — the booking wizard (customer login required)
     ├── src/pages/FindBookingPage.tsx    # "/find-booking" — manual lookup form
     ├── src/pages/BookingDetailsPage.tsx # "/bookings/:bookingRef" — booking details + QR
     ├── src/pages/CheckInPage.tsx        # "/checkin" — staff manual check-in form (auth required)
     ├── src/pages/QueuePage.tsx          # "/queue" — staff day view with action buttons (auth required)
+    ├── src/pages/customer/
+    │   ├── CustomerRegisterPage.tsx  # "/customer/register"
+    │   ├── CustomerVerifyPage.tsx    # "/customer/verify" — OTP entry, auto-logs-in on success
+    │   ├── CustomerLoginPage.tsx     # "/customer/login"
+    │   ├── CustomerForgotPasswordPage.tsx # "/customer/forgot-password"
+    │   ├── CustomerResetPasswordPage.tsx  # "/customer/reset-password"
+    │   ├── CustomerAccountLayout.tsx      # "/customer/account" shell — Profile/Bookings/Security tabs + <Outlet/>
+    │   ├── CustomerProfilePage.tsx        # "/customer/account/profile" — name/phone + picture upload
+    │   ├── CustomerBookingsPage.tsx       # "/customer/account/bookings" — own booking history
+    │   └── CustomerSecurityPage.tsx       # "/customer/account/security" — change password
     └── src/pages/admin/
         ├── AdminLayout.tsx      # "/admin" shell — Resources/Services/Holidays/Hours sub-nav + <Outlet/>
         ├── ResourcesAdminPage.tsx # "/admin/resources" — create a new resource (admin only)
@@ -190,6 +261,6 @@ booking-system/
 ```
 
 ## Next steps
-Phase 6: AWS deployment — EC2 for the API, RDS for Postgres, S3 for QR images, SES for
-confirmation emails, Lambda + EventBridge for a scheduled no-show sweep. Full plan in the
-roadmap doc.
+Phase 6: AWS deployment — EC2 for the API, RDS for Postgres, S3 for QR images and profile
+pictures (replacing local disk), SES for the OTP/confirmation emails (replacing console-log),
+Lambda + EventBridge for a scheduled no-show sweep. Full plan in the roadmap doc.

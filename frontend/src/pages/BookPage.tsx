@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useCustomerAuth } from "../auth/CustomerAuthContext";
+import { useCustomerAuthFetch } from "../auth/useCustomerAuthFetch";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import Card from "@mui/material/Card";
@@ -11,6 +13,7 @@ import Chip from "@mui/material/Chip";
 import Alert from "@mui/material/Alert";
 import Divider from "@mui/material/Divider";
 import CircularProgress from "@mui/material/CircularProgress";
+import Link from "@mui/material/Link";
 
 type Service = {
   id: string;
@@ -27,11 +30,17 @@ type Slot = { startTime: string; endTime: string };
 // `note` explaining why (a holiday or weekly closure) instead of just an empty list.
 type SlotsResponse = { slots: Slot[]; note?: string };
 
-// A linear booking wizard: pick a service -> pick a date -> pick an open slot -> enter
-// customer info -> submit. Kept as a handful of useState pieces instead of one big form
-// object, so each fetch's dependencies (what triggers it, what it needs) stay obvious.
+// A linear booking wizard: pick a service -> pick a date -> pick an open slot -> confirm ->
+// submit. Kept as a handful of useState pieces instead of one big form object, so each
+// fetch's dependencies (what triggers it, what it needs) stay obvious. As of the
+// customer-accounts phase, this page is wrapped in <RequireCustomerAuth> (see App.tsx) — an
+// anonymous visitor never reaches it, so there's no customer-info form here anymore; name/
+// phone/email come from the logged-in customer's own profile, both for the request (the
+// backend ignores anything else) and for display.
 export default function BookPage() {
   const navigate = useNavigate();
+  const { customer } = useCustomerAuth();
+  const customerAuthFetch = useCustomerAuthFetch();
 
   const [services, setServices] = useState<Service[] | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -40,10 +49,6 @@ export default function BookPage() {
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [closureNote, setClosureNote] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerEmail, setCustomerEmail] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,16 +98,13 @@ export default function BookPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/bookings", {
+      const res = await customerAuthFetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           resourceId: selectedService.resourceId,
           serviceId: selectedService.id,
           startTime: selectedSlot.startTime,
-          customerName,
-          customerPhone: customerPhone || undefined,
-          customerEmail: customerEmail || undefined,
         }),
       });
 
@@ -207,30 +209,17 @@ export default function BookPage() {
               </Stack>
             )}
 
-            {selectedSlot && (
+            {selectedSlot && customer && (
               <>
                 <Divider />
                 <Stack component="form" onSubmit={handleSubmit} spacing={2}>
-                  <TextField
-                    label="Name"
-                    required
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    fullWidth
-                  />
-                  <TextField
-                    label="Phone (optional)"
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    fullWidth
-                  />
-                  <TextField
-                    type="email"
-                    label="Email (optional)"
-                    value={customerEmail}
-                    onChange={(e) => setCustomerEmail(e.target.value)}
-                    fullWidth
-                  />
+                  <Typography variant="body2" color="text.secondary">
+                    Booking as <strong>{customer.name}</strong> ({customer.email}
+                    {customer.phone ? `, ${customer.phone}` : ""}) —{" "}
+                    <Link component={RouterLink} to="/customer/account/profile">
+                      not you?
+                    </Link>
+                  </Typography>
                   <Button type="submit" variant="contained" size="large" disabled={submitting}>
                     {submitting ? "Booking…" : "Confirm booking"}
                   </Button>

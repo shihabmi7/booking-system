@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/AuthContext";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { useCustomerAuth } from "../../auth/CustomerAuthContext";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -9,32 +9,36 @@ import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import Link from "@mui/material/Link";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 
-// Staff/admin login. Not customer-facing — customers never see this page, they interact
-// entirely through /book and /bookings/:bookingRef without ever logging in.
-export default function LoginPage() {
-  const { login } = useAuth();
+// /customer/login — public, fully separate from /staff/login (see
+// auth/CustomerAuthContext.tsx). Same "from" redirect pattern as StaffLoginPage: a customer
+// who got bounced here from a guarded page like /book lands back there after logging in.
+export default function CustomerLoginPage() {
+  const { login } = useCustomerAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [unverified, setUnverified] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setUnverified(false);
     setSubmitting(true);
     try {
       await login(email, password);
-      // Send the user back to the page they were trying to reach (set by RequireAuth),
-      // or default to the dashboard if they came here directly (e.g. clicked "Staff login").
-      const redirectTo = (location.state as { from?: string } | null)?.from || "/dashboard";
-      navigate(redirectTo, { replace: true });
+      navigate(from || "/", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const e2 = err as Error & { unverified?: boolean };
+      setError(e2.message || "Login failed");
+      setUnverified(!!e2.unverified);
     } finally {
       setSubmitting(false);
     }
@@ -57,9 +61,9 @@ export default function LoginPage() {
                 justifyContent: "center",
               }}
             >
-              <LockOutlinedIcon />
+              <PersonOutlineIcon />
             </Box>
-            <Typography variant="h5">Staff login</Typography>
+            <Typography variant="h5">Log in</Typography>
           </Stack>
 
           <Stack component="form" onSubmit={handleSubmit} spacing={2}>
@@ -80,19 +84,41 @@ export default function LoginPage() {
               required
               fullWidth
             />
-            {error && <Alert severity="error">{error}</Alert>}
+            {error && (
+              <Alert severity={unverified ? "warning" : "error"}>
+                {error}
+                {unverified && (
+                  <>
+                    {" "}
+                    <Link
+                      component={RouterLink}
+                      to="/customer/verify"
+                      state={{ email, from }}
+                    >
+                      Verify now
+                    </Link>
+                  </>
+                )}
+              </Alert>
+            )}
             <Button type="submit" variant="contained" size="large" disabled={submitting}>
               {submitting ? "Logging in…" : "Log in"}
             </Button>
           </Stack>
 
-          <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 3 }}>
-            Sample accounts from the seed script:
-            <br />
-            admin@sunriseclinic.test / AdminPass123!
-            <br />
-            staff@sunriseclinic.test / StaffPass123!
-          </Typography>
+          <Stack spacing={1} sx={{ mt: 3 }}>
+            <Typography variant="body2" align="center">
+              <Link component={RouterLink} to="/customer/forgot-password" state={{ email }}>
+                Forgot password?
+              </Link>
+            </Typography>
+            <Typography variant="body2" align="center">
+              New here?{" "}
+              <Link component={RouterLink} to="/customer/register" state={{ from }}>
+                Create an account
+              </Link>
+            </Typography>
+          </Stack>
         </CardContent>
       </Card>
     </Box>

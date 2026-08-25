@@ -22,6 +22,7 @@ import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import AddIcon from "@mui/icons-material/Add";
 
 type Summary = {
   date: string;
@@ -197,8 +198,17 @@ export default function DashboardPage() {
                   <Stack spacing={1.5} sx={{ flexGrow: 1, justifyContent: "center" }}>
                     <Button
                       component={RouterLink}
-                      to="/queue"
+                      to="/staff/bookings/new"
                       variant="contained"
+                      startIcon={<AddIcon />}
+                      fullWidth
+                    >
+                      New booking
+                    </Button>
+                    <Button
+                      component={RouterLink}
+                      to="/queue"
+                      variant="outlined"
                       startIcon={<PlaylistAddCheckIcon />}
                       fullWidth
                     >

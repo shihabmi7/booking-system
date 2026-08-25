@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { useAuthFetch } from "../auth/useAuthFetch";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import Button from "@mui/material/Button";
+import AddIcon from "@mui/icons-material/Add";
 import Chip from "@mui/material/Chip";
 import Alert from "@mui/material/Alert";
 import Paper from "@mui/material/Paper";
@@ -92,7 +94,12 @@ export default function QueuePage() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4">Queue</Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+        <Typography variant="h4">Queue</Typography>
+        <Button component={RouterLink} to="/staff/bookings/new" variant="contained" startIcon={<AddIcon />}>
+          New booking
+        </Button>
+      </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
       {actionError && <Alert severity="error">{actionError}</Alert>}

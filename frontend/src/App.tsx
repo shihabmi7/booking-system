@@ -14,10 +14,17 @@ import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
+import Avatar from "@mui/material/Avatar";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemIcon from "@mui/material/ListItemIcon";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import MenuIcon from "@mui/icons-material/Menu";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import EventNoteIcon from "@mui/icons-material/EventNote";
+import PersonIcon from "@mui/icons-material/Person";
+import LogoutIcon from "@mui/icons-material/Logout";
 import HomePage from "./pages/HomePage";
 import DashboardPage from "./pages/DashboardPage";
 import ServicesPage from "./pages/ServicesPage";
@@ -26,7 +33,17 @@ import FindBookingPage from "./pages/FindBookingPage";
 import BookingDetailsPage from "./pages/BookingDetailsPage";
 import CheckInPage from "./pages/CheckInPage";
 import QueuePage from "./pages/QueuePage";
-import LoginPage from "./pages/LoginPage";
+import StaffLoginPage from "./pages/StaffLoginPage";
+import CustomerRegisterPage from "./pages/customer/CustomerRegisterPage";
+import CustomerVerifyPage from "./pages/customer/CustomerVerifyPage";
+import CustomerLoginPage from "./pages/customer/CustomerLoginPage";
+import CustomerForgotPasswordPage from "./pages/customer/CustomerForgotPasswordPage";
+import CustomerResetPasswordPage from "./pages/customer/CustomerResetPasswordPage";
+import CustomerAccountLayout from "./pages/customer/CustomerAccountLayout";
+import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
+import CustomerBookingsPage from "./pages/customer/CustomerBookingsPage";
+import CustomerSecurityPage from "./pages/customer/CustomerSecurityPage";
+import RequireCustomerAuth from "./auth/RequireCustomerAuth";
 import AdminLayout from "./pages/admin/AdminLayout";
 import ResourcesAdminPage from "./pages/admin/ResourcesAdminPage";
 import ServicesAdminPage from "./pages/admin/ServicesAdminPage";
@@ -34,6 +51,8 @@ import HolidaysAdminPage from "./pages/admin/HolidaysAdminPage";
 import HoursAdminPage from "./pages/admin/HoursAdminPage";
 import RequireAuth from "./auth/RequireAuth";
 import { useAuth } from "./auth/AuthContext";
+import { useCustomerAuth } from "./auth/CustomerAuthContext";
+import StaffBookingPage from "./pages/StaffBookingPage";
 
 type NavItem = { to: string; label: string; end?: boolean };
 
@@ -51,6 +70,11 @@ const NAV_ITEMS: NavItem[] = [
 // adding a <Route> here and a page in src/pages/, not rewriting this file.
 export default function App() {
   const { user, logout } = useAuth();
+  // Customer session is a fully separate identity from the staff one above — see
+  // auth/CustomerAuthContext.tsx. Both can be active on the same device at once (e.g. a
+  // front-desk tablet), which is exactly why the AppBar shows two distinct identity slots
+  // below instead of one combined "who's logged in" indicator.
+  const { customer, logout: customerLogout } = useCustomerAuth();
   const location = useLocation();
   const theme = useTheme();
   // md breakpoint = 900px by default — below that, the inline Toolbar buttons stop fitting
@@ -58,6 +82,7 @@ export default function App() {
   // layout for the whole nav, instead of a dozen per-page media queries elsewhere.
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [customerMenuAnchor, setCustomerMenuAnchor] = useState<null | HTMLElement>(null);
 
   const navItems: NavItem[] =
     user?.role === "ADMIN" ? [...NAV_ITEMS, { to: "/admin/resources", label: "Admin" }] : NAV_ITEMS;
@@ -98,6 +123,63 @@ export default function App() {
             ))}
 
           {!isMobile &&
+            (customer ? (
+              <>
+                <IconButton
+                  color="inherit"
+                  onClick={(e) => setCustomerMenuAnchor(e.currentTarget)}
+                  sx={{ ml: 2 }}
+                  aria-label="Account menu"
+                >
+                  <Avatar
+                    src={customer.profilePictureUrl || undefined}
+                    sx={{ width: 32, height: 32, fontSize: 14 }}
+                  >
+                    {customer.name.charAt(0).toUpperCase()}
+                  </Avatar>
+                </IconButton>
+                <Menu
+                  anchorEl={customerMenuAnchor}
+                  open={!!customerMenuAnchor}
+                  onClose={() => setCustomerMenuAnchor(null)}
+                >
+                  <MenuItem
+                    component={RouterLink}
+                    to="/customer/account/bookings"
+                    onClick={() => setCustomerMenuAnchor(null)}
+                  >
+                    <ListItemIcon><EventNoteIcon fontSize="small" /></ListItemIcon>
+                    My bookings
+                  </MenuItem>
+                  <MenuItem
+                    component={RouterLink}
+                    to="/customer/account/profile"
+                    onClick={() => setCustomerMenuAnchor(null)}
+                  >
+                    <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
+                    Profile
+                  </MenuItem>
+                  <Divider />
+                  <MenuItem
+                    onClick={() => {
+                      customerLogout();
+                      setCustomerMenuAnchor(null);
+                    }}
+                  >
+                    <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>
+                    Log out
+                  </MenuItem>
+                </Menu>
+              </>
+            ) : (
+              <Button component={RouterLink} to="/customer/login" color="inherit" variant="text" size="small" sx={{ ml: 2 }}>
+                Log in / Sign up
+              </Button>
+            ))}
+
+          {/* Staff identity slot — visually distinct (outlined chip/button vs the customer
+              avatar/text-button above) so the two never get mistaken for one login. */}
+          {!isMobile &&
             (user ? (
               <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 2 }}>
                 <Chip
@@ -110,7 +192,7 @@ export default function App() {
                 </Button>
               </Stack>
             ) : (
-              <Button component={RouterLink} to="/login" color="inherit" variant="outlined" size="small" sx={{ ml: 2 }}>
+              <Button component={RouterLink} to="/staff/login" color="inherit" variant="outlined" size="small" sx={{ ml: 2 }}>
                 Staff login
               </Button>
             ))}
@@ -125,6 +207,65 @@ export default function App() {
 
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 260 }} role="presentation">
+          {customer && (
+            <Box sx={{ px: 2, py: 2 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Avatar src={customer.profilePictureUrl || undefined} sx={{ width: 36, height: 36 }}>
+                  {customer.name.charAt(0).toUpperCase()}
+                </Avatar>
+                <Box>
+                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                    {customer.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {customer.email}
+                  </Typography>
+                </Box>
+              </Stack>
+              <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                <Button
+                  size="small"
+                  component={RouterLink}
+                  to="/customer/account/bookings"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  My bookings
+                </Button>
+                <Button
+                  size="small"
+                  component={RouterLink}
+                  to="/customer/account/profile"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Profile
+                </Button>
+                <Button
+                  size="small"
+                  color="inherit"
+                  onClick={() => {
+                    customerLogout();
+                    setDrawerOpen(false);
+                  }}
+                >
+                  Log out
+                </Button>
+              </Stack>
+            </Box>
+          )}
+          {!customer && (
+            <Box sx={{ px: 2, py: 2 }}>
+              <Button
+                fullWidth
+                variant="outlined"
+                component={RouterLink}
+                to="/customer/login"
+                onClick={() => setDrawerOpen(false)}
+              >
+                Customer log in / Sign up
+              </Button>
+            </Box>
+          )}
+          <Divider />
           {user && (
             <Box sx={{ px: 2, py: 2 }}>
               <Typography variant="body2" color="text.secondary">
@@ -161,7 +302,7 @@ export default function App() {
                 fullWidth
                 variant="contained"
                 component={RouterLink}
-                to="/login"
+                to="/staff/login"
                 onClick={() => setDrawerOpen(false)}
               >
                 Staff login
@@ -183,10 +324,35 @@ export default function App() {
             }
           />
           <Route path="/services" element={<ServicesPage />} />
-          <Route path="/book" element={<BookPage />} />
+          <Route
+            path="/book"
+            element={
+              <RequireCustomerAuth>
+                <BookPage />
+              </RequireCustomerAuth>
+            }
+          />
           <Route path="/find-booking" element={<FindBookingPage />} />
           <Route path="/bookings/:bookingRef" element={<BookingDetailsPage />} />
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/staff/login" element={<StaffLoginPage />} />
+          <Route path="/customer/register" element={<CustomerRegisterPage />} />
+          <Route path="/customer/verify" element={<CustomerVerifyPage />} />
+          <Route path="/customer/login" element={<CustomerLoginPage />} />
+          <Route path="/customer/forgot-password" element={<CustomerForgotPasswordPage />} />
+          <Route path="/customer/reset-password" element={<CustomerResetPasswordPage />} />
+          <Route
+            path="/customer/account"
+            element={
+              <RequireCustomerAuth>
+                <CustomerAccountLayout />
+              </RequireCustomerAuth>
+            }
+          >
+            <Route index element={<Navigate to="profile" replace />} />
+            <Route path="profile" element={<CustomerProfilePage />} />
+            <Route path="bookings" element={<CustomerBookingsPage />} />
+            <Route path="security" element={<CustomerSecurityPage />} />
+          </Route>
           <Route
             path="/checkin"
             element={
@@ -200,6 +366,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <QueuePage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/staff/bookings/new"
+            element={
+              <RequireAuth>
+                <StaffBookingPage />
               </RequireAuth>
             }
           />

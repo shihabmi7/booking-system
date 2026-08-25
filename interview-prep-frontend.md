@@ -363,4 +363,82 @@ local constants.
 
 ---
 
+## Customer accounts (frontend)
+
+**Q: There's now `AuthContext` (staff) and `CustomerAuthContext` (customer) — two providers, two hooks, two `localStorage` key sets, two fetch-wrapper hooks (`useAuthFetch`/`useCustomerAuthFetch`). Why not one `AuthContext` with a `kind` field, given how much of the code (login, logout, token persistence) is identical between them?**
+A: The duplication is real, but it's the cheap kind — a few dozen near-identical lines — versus
+the expensive kind a unified context would risk: a bug where a component reads `useAuth()` and
+gets a customer's session back, or vice versa, because "auth" became one ambiguous concept
+instead of two concrete ones. This mirrors the backend's own reasoning for two separate `kind`-
+tagged JWTs instead of one `User` table with a role flag (see interview-prep-backend.md's
+Customer-accounts section) — keeping the frontend's shape symmetric with the backend's shape
+means a developer who understands one half automatically understands the other, and a route
+guard bug can't accidentally let a customer session satisfy a staff-only check just because
+they share a hook name. The cost of the duplication is small and mechanical; the cost of a
+type-shaped access-control bug is not.
+
+**Q: `RequireCustomerAuth` passes `{ from: location.pathname }` through `Navigate`'s `state`, and `CustomerLoginPage` reads it back out to redirect after login. Walk through what happens if a logged-out customer clicks "Book an appointment" and completes the full register → verify → login handoff — does `from` survive all three hops?**
+A: Yes, deliberately threaded through by hand at each hop, because React Router's location
+state doesn't persist across a `navigate()` call unless the next screen explicitly re-attaches
+it. The chain is: `/book` (`RequireCustomerAuth`) redirects to `/customer/login` with
+`state: { from: "/book" }`; `CustomerLoginPage` reads `location.state.from` and, if the visitor
+clicks "Create an account" instead of logging in, forwards it again via
+`<Link state={{ from }}>` to `/customer/register`; `CustomerRegisterPage` reads it once more
+and passes it to `/customer/verify` alongside the email; `CustomerVerifyPage` finally uses it
+as the post-verification redirect target instead of a hardcoded `"/"`. Drop any one link in
+that chain (e.g. forget to forward `from` from register to verify) and the customer lands on
+the homepage after all that effort instead of back at the booking page they actually wanted —
+an easy, silent regression to introduce, which is why it's worth being able to trace explicitly
+end to end rather than assuming "state just persists."
+
+**Q: `CustomerProfilePage`'s picture upload builds a `FormData` and explicitly does *not* set a `Content-Type` header, while every other POST/PATCH in this app sets `Content-Type: application/json`. What breaks if you "fix" that inconsistency by adding `Content-Type: multipart/form-data` explicitly?**
+A: The upload breaks, silently producing a `400` from multer on the backend. A
+`multipart/form-data` request needs a `boundary` parameter in its `Content-Type` header (e.g.
+`multipart/form-data; boundary=----WebKitFormBoundaryXYZ`) that the browser generates uniquely
+per-request based on the `FormData` contents — it's not something a developer can type in ahead
+of time. Setting the header manually to a static string either omits the boundary entirely or
+uses one that doesn't match what's actually in the request body, and the server's multipart
+parser (multer here) can't find the field separators it needs, so it fails to parse the file at
+all. The fix is to leave `Content-Type` out of the fetch call and let the browser set it —
+which looks like an inconsistency with the JSON requests elsewhere, but is actually the correct
+behavior for this one content type, not an oversight to "clean up."
+
+**Q: `StaffBookingPage`'s customer search debounces with a 300ms `setTimeout` inside a `useEffect`, cleared on every keystroke via the effect's cleanup function. Why is the cleanup function what actually makes this a debounce, rather than just the `setTimeout` call itself?**
+A: `setTimeout` alone would fire once per keystroke, still — just delayed by 300ms each, which
+is a *throttle-adjacent* delay, not a debounce; typing "Jane" would still queue up four separate
+searches, they'd just all resolve 300ms later instead of immediately. What makes it an actual
+debounce is the `return () => clearTimeout(handle)` — React calls that cleanup function before
+re-running the effect on the next keystroke, canceling whatever timer the previous keystroke
+had queued. So only the *last* keystroke's timer ever survives long enough to fire, provided the
+user keeps typing faster than 300ms apart. This is a general React pattern, not specific to this
+search box: any `useEffect` that starts a timer/subscription and depends on frequently-changing
+state needs a matching cleanup, or the old timers/subscriptions pile up instead of getting
+replaced.
+
+**Q: `BookPage` used to have its own `customerName`/`customerPhone`/`customerEmail` fields; now it just shows "Booking as `<name>`" read from `CustomerAuthContext`. What would go wrong if the backend change (customer fields removed from the request body) shipped without this frontend change also shipping?**
+A: Nothing breaks outright — the old form would still submit a JSON body containing
+`customerName`/`customerPhone`/`customerEmail`, and the backend would simply ignore those
+fields entirely now that `POST /api/bookings` derives them from `req.customer` (the JWT) rather
+than the body. The booking would still get created successfully, with the *actual* logged-in
+customer's profile info attached, silently discarding whatever the customer typed into that
+now-pointless form. That's a confusing but not catastrophic failure mode — worth naming as the
+kind of bug that's easy to miss in code review (nothing throws, nothing 500s) and only shows up
+as "why does the booking say a different name than what I typed," which is exactly why the
+frontend and backend halves of this change were rolled out together rather than the frontend
+lagging behind.
+
+**Q: The `AppBar` shows both a staff identity slot (chip + logout) and a customer identity slot (avatar menu) at the same time, rather than picking one based on which page is open. Given a customer and staff member are unlikely to be the same person in the same browser tab, is showing both worth the extra AppBar complexity?**
+A: The scenario that justifies it isn't "the same person switching hats," it's a *shared
+device* — a front-desk tablet where staff stay logged in all day (their session used for
+`/queue`, `/checkin`, `/staff/bookings/new`) while a walk-in customer might independently look
+up their own booking or check their history on the same screen, without staff wanting to log
+out of their own session to let them. Two independent identity slots means both sessions can
+coexist without either one clobbering the other — which is also exactly why
+`CustomerAuthContext` and `AuthContext` use separate `localStorage` keys (see this section's
+first question) instead of one shared "current user" slot. Collapsing them into a single
+combined indicator would be simpler UI, but would misrepresent a state that's genuinely dual on
+a device like this.
+
+---
+
 ## Phase 6 — (not started yet)
