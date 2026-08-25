@@ -142,7 +142,11 @@ export default function App() {
               </Button>
             ))}
 
-          {!isMobile &&
+          {/* Customer identity slot — hidden entirely while a staff session is active (not
+              just swapped for a logged-out prompt), so a staff member never sees a "Log in /
+              Sign up" invitation that has nothing to do with them. Still shows for an
+              anonymous visitor (neither logged in) same as before. */}
+          {!isMobile && !user &&
             (customer ? (
               <>
                 <IconButton
@@ -197,9 +201,11 @@ export default function App() {
               </Button>
             ))}
 
-          {/* Staff identity slot — visually distinct (outlined chip/button vs the customer
-              avatar/text-button above) so the two never get mistaken for one login. */}
-          {!isMobile &&
+          {/* Staff identity slot — hidden entirely while a customer session is active, same
+              reasoning as above in reverse: visually distinct (outlined chip/button vs the
+              customer avatar/text-button) so on the rare device where this WOULD show
+              alongside a customer session, the two never get mistaken for one login. */}
+          {!isMobile && !customer &&
             (user ? (
               <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 2 }}>
                 <Chip
@@ -227,7 +233,9 @@ export default function App() {
 
       <Drawer anchor="right" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 260 }} role="presentation">
-          {customer && (
+          {/* Same "hide the other identity's slot while one is active" rule as the desktop
+              Toolbar above — !user/!customer guards on both blocks below. */}
+          {!user && customer && (
             <Box sx={{ px: 2, py: 2 }}>
               <Stack direction="row" spacing={1.5} alignItems="center">
                 <Avatar src={customer.profilePictureUrl || undefined} sx={{ width: 36, height: 36 }}>
@@ -272,7 +280,7 @@ export default function App() {
               </Stack>
             </Box>
           )}
-          {!customer && (
+          {!user && !customer && (
             <Box sx={{ px: 2, py: 2 }}>
               <Button
                 fullWidth
@@ -286,7 +294,7 @@ export default function App() {
             </Box>
           )}
           <Divider />
-          {user && (
+          {!customer && user && (
             <Box sx={{ px: 2, py: 2 }}>
               <Typography variant="body2" color="text.secondary">
                 Signed in as
@@ -312,23 +320,25 @@ export default function App() {
             ))}
           </List>
           <Divider />
-          <Box sx={{ p: 2 }}>
-            {user ? (
-              <Button fullWidth variant="outlined" onClick={() => { logout(); setDrawerOpen(false); }}>
-                Log out
-              </Button>
-            ) : (
-              <Button
-                fullWidth
-                variant="contained"
-                component={RouterLink}
-                to="/staff/login"
-                onClick={() => setDrawerOpen(false)}
-              >
-                Staff login
-              </Button>
-            )}
-          </Box>
+          {!customer && (
+            <Box sx={{ p: 2 }}>
+              {user ? (
+                <Button fullWidth variant="outlined" onClick={() => { logout(); setDrawerOpen(false); }}>
+                  Log out
+                </Button>
+              ) : (
+                <Button
+                  fullWidth
+                  variant="contained"
+                  component={RouterLink}
+                  to="/staff/login"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Staff login
+                </Button>
+              )}
+            </Box>
+          )}
         </Box>
       </Drawer>
 
