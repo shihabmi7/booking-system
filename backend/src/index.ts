@@ -15,6 +15,10 @@ import authRouter from "./routes/auth";
 import dashboardRouter from "./routes/dashboard";
 import customerRouter from "./routes/customer";
 import staffBookingsRouter from "./routes/staffBookings";
+import devicesRouter from "./routes/devices";
+import notificationsRouter from "./routes/notifications";
+import staffNotificationsRouter from "./routes/staffNotifications";
+import { startReminderScheduler } from "./jobs/reminderScheduler";
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -35,8 +39,21 @@ app.use("/api/queue", queueRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/customer", customerRouter);
+app.use("/api/devices", devicesRouter);
+app.use("/api/notifications", notificationsRouter);
 app.use("/api/staff", staffBookingsRouter);
+// Mounted AFTER staffBookingsRouter but on a deeper path, so the two never collide:
+// staffBookingsRouter owns /api/staff/customers and /api/staff/bookings, this owns
+// everything under /api/staff/notifications.
+app.use("/api/staff/notifications", staffNotificationsRouter);
 
 app.listen(PORT, () => {
   console.log(`Booking system API listening on http://localhost:${PORT}`);
+  // Started after the server is listening, not before — if the DB is unreachable the sweep
+  // logs and retries on the next tick, rather than blocking the API from ever coming up.
+  // Set REMINDERS_ENABLED=false to run an instance that serves the API but sends no
+  // reminders (useful when running two copies locally, or in tests).
+  if (process.env.REMINDERS_ENABLED !== "false") {
+    startReminderScheduler();
+  }
 });

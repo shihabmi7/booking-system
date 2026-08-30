@@ -6,6 +6,9 @@ import { canTransition } from "../services/bookingStateMachine";
 import { createBooking } from "../services/bookingCreation";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { requireCustomerAuth } from "../middleware/customerAuth";
+import { notify } from "../services/notifications";
+import { getSettings } from "../services/notificationSettings";
+import { checkInConfirmed } from "../services/notificationTemplates";
 
 const router = Router();
 
@@ -67,7 +70,10 @@ router.get("/:bookingRef", async (req, res) => {
 router.post("/:bookingRef/checkin", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async (req, res) => {
   const booking = await prisma.booking.findUnique({
     where: { bookingRef: req.params.bookingRef },
-    include: { resource: { select: { businessId: true } } },
+    include: {
+      service: { select: { name: true } },
+      resource: { select: { businessId: true, name: true, business: { select: { name: true, timezone: true } } } },
+    },
   });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (booking.resource.businessId !== req.user!.businessId) {
@@ -88,6 +94,34 @@ router.post("/:bookingRef/checkin", requireAuth, requireRole(UserRole.STAFF, Use
     where: { bookingRef: req.params.bookingRef },
     data: { status: "CHECKED_IN", checkedInAt, checkInMethod: method },
   });
+
+  // Push the check-in confirmation AFTER the state change has committed, and deliberately
+  // not inside a transaction with it: a Firebase timeout must never roll back a check-in that
+  // physically happened at the front desk. Awaited (rather than fire-and-forget) only because
+  // notify() already swallows its own failures — see services/notifications.ts.
+  //
+  // Skipped for walk-in bookings with no customer account (booking.customerId is null — see
+  // schema.prisma), since there's no account to deliver to.
+  if (booking.customerId) {
+    const settings = await getSettings(booking.resource.businessId);
+    if (settings.checkInEnabled) {
+      const template = checkInConfirmed(booking);
+      await notify({
+        customerId: booking.customerId,
+        type: "CHECK_IN_CONFIRMED",
+        bookingId: booking.id,
+        businessId: booking.resource.businessId,
+        // The customer is standing in the waiting room right now — quiet hours must not
+        // suppress the one notification they're actively waiting for.
+        urgent: true,
+        // dedupeKey off the booking, so a double-scan of the same QR code can't send two
+        // "you're checked in" pushes. The state machine already blocks CHECKED_IN →
+        // CHECKED_IN, but this makes the notification idempotent on its own terms.
+        dedupeKey: `${booking.id}:CHECK_IN`,
+        ...template,
+      });
+    }
+  }
 
   res.json({ ...updated, isLate });
 });

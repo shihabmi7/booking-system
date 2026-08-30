@@ -10,6 +10,7 @@ const TABS = [
   { to: "/admin/services", label: "Services" },
   { to: "/admin/holidays", label: "Holidays" },
   { to: "/admin/hours", label: "Hours" },
+  { to: "/admin/notifications", label: "Notifications" },
 ];
 
 // Shared shell for the /admin/* pages — an MUI Tabs bar (Resources / Services / Holidays /

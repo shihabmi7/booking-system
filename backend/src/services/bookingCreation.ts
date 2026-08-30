@@ -2,6 +2,9 @@ import { Booking, Prisma } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { getAvailableSlots } from "./availability";
 import { generateBookingQrCode } from "./qrCode";
+import { notify } from "./notifications";
+import { getSettings } from "./notificationSettings";
+import { bookingConfirmed } from "./notificationTemplates";
 
 // Shared by both booking-creation entry points — a customer booking themselves
 // (routes/bookings.ts) and a staff member booking a walk-in (routes/staffBookings.ts).
@@ -83,6 +86,41 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
       },
     });
     const qrCode = await generateBookingQrCode(booking.bookingRef);
+
+    // Fire-after-commit, same rule as the check-in confirmation in routes/bookings.ts: the
+    // booking already exists in the DB by this point, so a Firebase hiccup must not turn into
+    // a 500 on an otherwise-successful booking. Only runs for a registered customer — a
+    // walk-in typed in by staff (customerId null) has no account to deliver to.
+    // The idempotencyKey early-return above means a retried request never reaches here twice.
+    if (booking.customerId) {
+      const resource = await prisma.resource.findUnique({
+        where: { id: resourceId },
+        select: { businessId: true, name: true, business: { select: { name: true, timezone: true } } },
+      });
+      if (resource) {
+        const settings = await getSettings(resource.businessId);
+        if (settings.bookingConfirmedEnabled) {
+          const template = bookingConfirmed({
+            id: booking.id,
+            bookingRef: booking.bookingRef,
+            startTime: booking.startTime,
+            service: { name: service.name },
+            resource: { name: resource.name, business: resource.business },
+          });
+          await notify({
+            customerId: booking.customerId,
+            type: "BOOKING_CONFIRMED",
+            bookingId: booking.id,
+            businessId: resource.businessId,
+            // The customer is looking at the confirmation screen right now — quiet hours
+            // exist to stop automated sends at 3am, not this one.
+            urgent: true,
+            ...template,
+          });
+        }
+      }
+    }
+
     return { ok: true, status: 201, booking: { ...booking, qrCode } };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {

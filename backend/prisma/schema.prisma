@@ -19,6 +19,9 @@ model Business {
   // most closures (public holidays, the clinic being shut) affect everyone at once.
   holidays  Holiday[]
   users     User[]
+  // 1:1 — created lazily by services/notificationSettings.ts the first time settings are
+  // read or written, so existing businesses don't need a backfill migration.
+  notificationSetting NotificationSetting?
 }
 
 enum UserRole {
@@ -38,6 +41,8 @@ model User {
   businessId   String
   business     Business @relation(fields: [businessId], references: [id])
   createdAt    DateTime @default(now())
+  // Notifications this staff member manually sent (system-generated ones have no sender).
+  sentNotifications Notification[]
 }
 
 // A customer account — separate from User (staff/admin) entirely. Customers self-register,
@@ -57,6 +62,8 @@ model Customer {
   createdAt         DateTime  @default(now())
   bookings          Booking[]
   otpCodes          OtpCode[]
+  devices           DeviceToken[]
+  notifications     Notification[]
 }
 
 enum OtpPurpose {
@@ -171,10 +178,144 @@ model Booking {
   // booking instead of creating a duplicate.
   idempotencyKey String?      @unique
   createdAt     DateTime      @default(now())
+  notifications Notification[]
 
   // Last line of defense against double-booking: even if two requests for the same
   // resource+startTime both pass the application-level availability check at the same
   // instant (a check-then-act race), only one INSERT can win here — the other fails
   // with a unique constraint violation, which the API turns into a clean 409 response.
   @@unique([resourceId, startTime])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications & push
+// ---------------------------------------------------------------------------
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+// One row per (customer, device) — registered by the mobile app right after login, and
+// refreshed whenever Firebase rotates the token (FCM does this on reinstall, restore to a new
+// phone, or after long inactivity).
+//
+// `token` is the FCM registration token for BOTH platforms: on iOS the app calls
+// Firebase's getToken(), and Firebase relays to APNs on the server side using the .p8 key
+// uploaded to the Firebase console. That's why there's no separate APNs device-token column —
+// see services/push.ts for the single-provider reasoning.
+//
+// `token` is globally unique rather than unique-per-customer on purpose: a token identifies a
+// physical app install, so if two accounts log in on the same phone the newer registration
+// must MOVE the token to the new customer, not create a second row. Otherwise the previous
+// user's notifications keep landing on a device someone else is now using. See the upsert in
+// routes/devices.ts.
+model DeviceToken {
+  id          String         @id @default(uuid())
+  customerId  String
+  customer    Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  token       String         @unique
+  platform    DevicePlatform
+  // Free-text, purely for support/debugging ("push isn't working on my iPhone") and for
+  // deciding when an old client version needs a different payload shape.
+  osVersion   String?
+  appVersion  String?
+  deviceModel String?
+  // Bumped on every register call — lets a cleanup job prune tokens no app has touched in
+  // months, which FCM would reject anyway.
+  lastSeenAt  DateTime       @default(now())
+  // Set when FCM reports the token as unregistered/invalid (app uninstalled). Kept rather
+  // than deleted so delivery history in NotificationDelivery still resolves to a real row.
+  disabledAt  DateTime?
+  createdAt   DateTime       @default(now())
+  deliveries  NotificationDelivery[]
+
+  @@index([customerId, disabledAt])
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMED
+  BOOKING_REMINDER
+  CHECK_IN_CONFIRMED
+  BOOKING_CANCELLED
+  STAFF_MESSAGE
+}
+
+// The stored, in-app notification — the source of truth for the customer's notification
+// list. Deliberately separate from NotificationDelivery below: a Notification exists even if
+// the customer has no device registered at all (they'll still see it in the app next time
+// they open it), and one Notification fans out to N device deliveries.
+model Notification {
+  id           String           @id @default(uuid())
+  customerId   String
+  customer     Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  // Set for anything booking-related, so the app can deep-link straight to the booking.
+  bookingId    String?
+  booking      Booking?         @relation(fields: [bookingId], references: [id])
+  type         NotificationType
+  title        String
+  body         String
+  // Extra key/values forwarded to the client in the push payload's data section
+  // (e.g. { bookingRef, screen: "BookingDetail" }) for deep-linking.
+  data         Json?
+  // Null for system-generated notifications; set to the staff/admin User who clicked send.
+  sentByUserId String?
+  sentByUser   User?            @relation(fields: [sentByUserId], references: [id])
+  // The whole reason the reminder cron can be a dumb every-5-minutes poll: a key like
+  // "<bookingId>:REMINDER:360" is unique, so a second attempt to insert the same reminder
+  // fails at the database level instead of double-notifying. Null for anything that's
+  // legitimately repeatable (a staff member sending two manual messages, say).
+  dedupeKey    String?          @unique
+  readAt       DateTime?
+  createdAt    DateTime         @default(now())
+  deliveries   NotificationDelivery[]
+
+  // Serves the main list query (this customer's notifications, newest first) and the
+  // unread-count query, both of which filter on customerId.
+  @@index([customerId, createdAt])
+}
+
+enum DeliveryStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+// One row per push attempt to one device. Exists so "the customer says they never got it" is
+// answerable: which devices were targeted, what the provider said, and why a send was skipped.
+model NotificationDelivery {
+  id                String         @id @default(uuid())
+  notificationId    String
+  notification      Notification   @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  deviceTokenId     String
+  deviceToken       DeviceToken    @relation(fields: [deviceTokenId], references: [id], onDelete: Cascade)
+  status            DeliveryStatus
+  // FCM's returned message name, e.g. "projects/x/messages/0:157...". Null on failure.
+  providerMessageId String?
+  error             String?
+  attemptedAt       DateTime       @default(now())
+
+  @@index([notificationId])
+}
+
+// Per-business notification settings — the "a setting will be fine" part of the reminder
+// requirement. One row per Business, created on first read (see services/notificationSettings.ts).
+model NotificationSetting {
+  id         String   @id @default(uuid())
+  businessId String   @unique
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  // How many MINUTES before a booking's startTime each reminder fires. Default [360, 60] =
+  // the 6-hour and 1-hour reminders. An array rather than two boolean columns so a business
+  // can add a 24h reminder (or drop to just one) without a schema change — the cron loops
+  // over whatever is in here.
+  reminderOffsetsMins Int[]  @default([360, 60])
+  remindersEnabled    Boolean @default(true)
+  checkInEnabled      Boolean @default(true)
+  bookingConfirmedEnabled Boolean @default(true)
+  // "HH:MM" in the Business's timezone. When set, non-urgent pushes inside this window are
+  // still STORED (the customer sees them in-app) but no push is sent — see services/notifications.ts.
+  quietHoursStart String?
+  quietHoursEnd   String?
+  updatedAt       DateTime @updatedAt
 }

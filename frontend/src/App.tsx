@@ -43,16 +43,20 @@ import CustomerAccountLayout from "./pages/customer/CustomerAccountLayout";
 import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
 import CustomerBookingsPage from "./pages/customer/CustomerBookingsPage";
 import CustomerSecurityPage from "./pages/customer/CustomerSecurityPage";
+import CustomerNotificationsPage from "./pages/customer/CustomerNotificationsPage";
 import RequireCustomerAuth from "./auth/RequireCustomerAuth";
 import AdminLayout from "./pages/admin/AdminLayout";
 import ResourcesAdminPage from "./pages/admin/ResourcesAdminPage";
 import ServicesAdminPage from "./pages/admin/ServicesAdminPage";
 import HolidaysAdminPage from "./pages/admin/HolidaysAdminPage";
 import HoursAdminPage from "./pages/admin/HoursAdminPage";
+import NotificationSettingsAdminPage from "./pages/admin/NotificationSettingsAdminPage";
 import RequireAuth from "./auth/RequireAuth";
 import { useAuth } from "./auth/AuthContext";
 import { useCustomerAuth } from "./auth/CustomerAuthContext";
 import StaffBookingPage from "./pages/StaffBookingPage";
+import StaffNotificationsPage from "./pages/StaffNotificationsPage";
+import NotificationBell from "./components/NotificationBell";
 
 type NavItem = { to: string; label: string; end?: boolean };
 
@@ -69,6 +73,7 @@ const STAFF_NAV_ITEMS: NavItem[] = [
   { to: "/checkin", label: "Check-in" },
   { to: "/find-booking", label: "Find booking" },
   { to: "/staff/bookings/new", label: "New booking" },
+  { to: "/staff/notifications", label: "Notifications" },
 ];
 
 const CUSTOMER_NAV_ITEMS: NavItem[] = [
@@ -149,6 +154,7 @@ export default function App() {
           {!isMobile && !user &&
             (customer ? (
               <>
+                <NotificationBell />
                 <IconButton
                   color="inherit"
                   onClick={(e) => setCustomerMenuAnchor(e.currentTarget)}
@@ -224,9 +230,12 @@ export default function App() {
             ))}
 
           {isMobile && (
-            <IconButton color="inherit" edge="end" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
-              <MenuIcon />
-            </IconButton>
+            <>
+              {!user && customer && <NotificationBell />}
+              <IconButton color="inherit" edge="end" onClick={() => setDrawerOpen(true)} aria-label="Open menu">
+                <MenuIcon />
+              </IconButton>
+            </>
           )}
         </Toolbar>
       </AppBar>
@@ -250,7 +259,7 @@ export default function App() {
                   </Typography>
                 </Box>
               </Stack>
-              <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.5 }}>
                 <Button
                   size="small"
                   component={RouterLink}
@@ -258,6 +267,14 @@ export default function App() {
                   onClick={() => setDrawerOpen(false)}
                 >
                   My bookings
+                </Button>
+                <Button
+                  size="small"
+                  component={RouterLink}
+                  to="/customer/notifications"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Notifications
                 </Button>
                 <Button
                   size="small"
@@ -393,6 +410,14 @@ export default function App() {
             }
           />
           <Route
+            path="/customer/notifications"
+            element={
+              <RequireCustomerAuth>
+                <CustomerNotificationsPage />
+              </RequireCustomerAuth>
+            }
+          />
+          <Route
             path="/customer/account"
             element={
               <RequireCustomerAuth>
@@ -429,6 +454,14 @@ export default function App() {
             }
           />
           <Route
+            path="/staff/notifications"
+            element={
+              <RequireAuth>
+                <StaffNotificationsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
             path="/admin"
             element={
               <RequireAuth role="ADMIN">
@@ -441,6 +474,7 @@ export default function App() {
             <Route path="services" element={<ServicesAdminPage />} />
             <Route path="holidays" element={<HolidaysAdminPage />} />
             <Route path="hours" element={<HoursAdminPage />} />
+            <Route path="notifications" element={<NotificationSettingsAdminPage />} />
           </Route>
         </Routes>
       </Container>
