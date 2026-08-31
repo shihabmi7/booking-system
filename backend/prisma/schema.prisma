@@ -64,6 +64,7 @@ model Customer {
   otpCodes          OtpCode[]
   devices           DeviceToken[]
   notifications     Notification[]
+  favoriteServices  FavoriteService[]
 }
 
 enum OtpPurpose {
@@ -129,6 +130,24 @@ model Service {
   resource     Resource  @relation(fields: [resourceId], references: [id])
   bookings     Booking[]
   createdAt    DateTime  @default(now())
+  favoritedBy  FavoriteService[]
+}
+
+// A customer's saved "book this again" shortcut. Scoped to Service (the actual bookable
+// unit — picking a service is step one of both BookPage and StaffBookingPage) rather than to
+// Resource or Business, so favoriting "Follow-up Visit with Dr. Rahman" is precise even once a
+// business offers multiple services per resource or multiple resources.
+model FavoriteService {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceId  String
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  // A customer can only favorite a given service once — POST is an upsert against this
+  // constraint rather than the route pre-checking with a findFirst.
+  @@unique([customerId, serviceId])
 }
 
 enum BookingStatus {
@@ -239,6 +258,7 @@ enum NotificationType {
   BOOKING_REMINDER
   CHECK_IN_CONFIRMED
   BOOKING_CANCELLED
+  BOOKING_RESCHEDULED
   STAFF_MESSAGE
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { useCustomerAuthFetch } from "../../auth/useCustomerAuthFetch";
+import RescheduleDialog from "../../components/RescheduleDialog";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
@@ -14,11 +15,15 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Link from "@mui/material/Link";
+import Button from "@mui/material/Button";
 
 type BookingRow = {
+  id: string;
   bookingRef: string;
   startTime: string;
   status: string;
+  resourceId: string;
+  serviceId: string;
   service: { name: string; durationMins: number; price: string };
   resource: { name: string; business: { name: string } };
 };
@@ -43,14 +48,34 @@ export default function CustomerBookingsPage() {
   const customerAuthFetch = useCustomerAuthFetch();
   const [bookings, setBookings] = useState<BookingRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingRef, setCancellingRef] = useState<string | null>(null);
+  const [rescheduling, setRescheduling] = useState<BookingRow | null>(null);
 
-  useEffect(() => {
+  function load() {
     customerAuthFetch("/api/customer/bookings")
       .then((res) => res.json())
       .then(setBookings)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load bookings"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, []);
+
+  async function handleCancel(booking: BookingRow) {
+    if (!window.confirm(`Cancel your ${booking.service.name} appointment?`)) return;
+    setCancellingRef(booking.bookingRef);
+    setError(null);
+    try {
+      const res = await customerAuthFetch(`/api/bookings/${booking.bookingRef}/cancel`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
+      setBookings((prev) => prev?.map((b) => (b.bookingRef === booking.bookingRef ? { ...b, status: "CANCELLED" } : b)) ?? null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cancel booking");
+    } finally {
+      setCancellingRef(null);
+    }
+  }
 
   return (
     <Stack spacing={3}>
@@ -72,6 +97,7 @@ export default function CustomerBookingsPage() {
                 <TableCell>Business</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell>Details</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -95,11 +121,49 @@ export default function CustomerBookingsPage() {
                       View
                     </Link>
                   </TableCell>
+                  <TableCell>
+                    {/* Only a BOOKED appointment can be changed — the state machine (and the
+                        reschedule guard) reject anything else, so hiding the actions here
+                        avoids a click that always 409s. */}
+                    {b.status === "BOOKED" && (
+                      <Stack direction="row" spacing={1}>
+                        <Button size="small" onClick={() => setRescheduling(b)}>
+                          Reschedule
+                        </Button>
+                        <Button
+                          size="small"
+                          color="error"
+                          disabled={cancellingRef === b.bookingRef}
+                          onClick={() => handleCancel(b)}
+                        >
+                          Cancel
+                        </Button>
+                      </Stack>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {rescheduling && (
+        <RescheduleDialog
+          open={!!rescheduling}
+          onClose={() => setRescheduling(null)}
+          authFetch={customerAuthFetch}
+          basePath="/api/bookings"
+          bookingRef={rescheduling.bookingRef}
+          resourceId={rescheduling.resourceId}
+          serviceId={rescheduling.serviceId}
+          currentStartTime={rescheduling.startTime}
+          onRescheduled={(updated) => {
+            setBookings((prev) =>
+              prev?.map((b) => (b.bookingRef === rescheduling.bookingRef ? { ...b, startTime: updated.startTime } : b)) ?? null
+            );
+          }}
+        />
       )}
 
       {bookings === null && !error && (

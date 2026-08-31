@@ -18,6 +18,7 @@ import staffBookingsRouter from "./routes/staffBookings";
 import devicesRouter from "./routes/devices";
 import notificationsRouter from "./routes/notifications";
 import staffNotificationsRouter from "./routes/staffNotifications";
+import favoritesRouter from "./routes/favorites";
 import { startReminderScheduler } from "./jobs/reminderScheduler";
 
 const app = express();
@@ -41,6 +42,7 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/customer", customerRouter);
 app.use("/api/devices", devicesRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/favorites", favoritesRouter);
 app.use("/api/staff", staffBookingsRouter);
 // Mounted AFTER staffBookingsRouter but on a deeper path, so the two never collide:
 // staffBookingsRouter owns /api/staff/customers and /api/staff/bookings, this owns

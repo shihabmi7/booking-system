@@ -38,6 +38,7 @@ const TYPE_LABEL: Record<string, string> = {
   BOOKING_REMINDER: "Reminder",
   CHECK_IN_CONFIRMED: "Checked in",
   BOOKING_CANCELLED: "Cancelled",
+  BOOKING_RESCHEDULED: "Rescheduled",
   STAFF_MESSAGE: "Message",
 };
 

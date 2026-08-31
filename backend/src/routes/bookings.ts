@@ -9,6 +9,7 @@ import { requireCustomerAuth } from "../middleware/customerAuth";
 import { notify } from "../services/notifications";
 import { getSettings } from "../services/notificationSettings";
 import { checkInConfirmed } from "../services/notificationTemplates";
+import { cancelBooking, rescheduleBooking } from "../services/bookingLifecycle";
 
 const router = Router();
 
@@ -53,13 +54,53 @@ router.get("/:bookingRef", async (req, res) => {
     where: { bookingRef: req.params.bookingRef },
     include: {
       service: { select: { name: true, durationMins: true, price: true } },
-      resource: { select: { name: true, business: { select: { name: true } } } },
+      // businessId included alongside the display fields so the frontend can tell whether
+      // the currently-logged-in staff member's own business owns this booking, without a
+      // second request — same info staff-only routes already gate on, just surfaced here
+      // since this lookup is intentionally public/unauthenticated (see comment above).
+      resource: { select: { name: true, businessId: true, business: { select: { name: true } } } },
     },
   });
 
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   const qrCode = await generateBookingQrCode(booking.bookingRef);
   res.json({ ...booking, qrCode });
+});
+
+// POST /api/bookings/:bookingRef/cancel — a CUSTOMER cancelling their own booking.
+// Ownership is checked here (against req.customer, never a request-body field) before
+// cancelBooking() runs — the staff equivalent (routes/staffBookings.ts) checks businessId
+// ownership instead, since staff act on behalf of any customer at their business.
+router.post("/:bookingRef/cancel", requireCustomerAuth, async (req, res) => {
+  const booking = await prisma.booking.findUnique({ where: { bookingRef: req.params.bookingRef } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.customerId !== req.customer!.customerId) {
+    return res.status(403).json({ error: "This isn't your booking" });
+  }
+
+  const result = await cancelBooking(req.params.bookingRef);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json(result.booking);
+});
+
+// PATCH /api/bookings/:bookingRef/reschedule — a CUSTOMER moving their own booking to a new
+// time on the same service/resource. Body: { startTime }. Changing service or resource isn't
+// supported here — that's a cancel + a fresh booking, not a reschedule.
+router.patch("/:bookingRef/reschedule", requireCustomerAuth, async (req, res) => {
+  const { startTime } = req.body ?? {};
+  if (typeof startTime !== "string") {
+    return res.status(400).json({ error: "startTime is required" });
+  }
+
+  const booking = await prisma.booking.findUnique({ where: { bookingRef: req.params.bookingRef } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.customerId !== req.customer!.customerId) {
+    return res.status(403).json({ error: "This isn't your booking" });
+  }
+
+  const result = await rescheduleBooking(req.params.bookingRef, startTime);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json(result.booking);
 });
 
 // POST /api/bookings/:bookingRef/checkin — the QR scan (or manual booking-ref entry) endpoint.

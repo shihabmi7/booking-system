@@ -1,23 +1,34 @@
 import { useEffect, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { useAuthFetch } from "../auth/useAuthFetch";
+import { useCustomerAuth } from "../auth/CustomerAuthContext";
+import { useCustomerAuthFetch } from "../auth/useCustomerAuthFetch";
+import RescheduleDialog from "../components/RescheduleDialog";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
+import CardActions from "@mui/material/CardActions";
 import Chip from "@mui/material/Chip";
 import Alert from "@mui/material/Alert";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
+import Button from "@mui/material/Button";
 import { ChipProps } from "@mui/material/Chip";
 
 type BookingDetails = {
+  id: string;
   bookingRef: string;
   customerName: string;
+  customerId: string | null;
+  resourceId: string;
+  serviceId: string;
   status: string;
   startTime: string;
   service: { name: string; durationMins: number; price: string };
-  resource: { name: string; business: { name: string } };
+  resource: { name: string; businessId: string; business: { name: string } };
   qrCode: string; // base64 PNG data URL, generated fresh on every fetch
 };
 
@@ -49,8 +60,16 @@ export default function BookingDetailsPage() {
   const { bookingRef } = useParams<{ bookingRef: string }>();
   const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
-  useEffect(() => {
+  const { user } = useAuth();
+  const authFetch = useAuthFetch();
+  const { customer } = useCustomerAuth();
+  const customerAuthFetch = useCustomerAuthFetch();
+
+  function load() {
     if (!bookingRef) return;
     setBooking(null);
     setError(null);
@@ -63,7 +82,38 @@ export default function BookingDetailsPage() {
       })
       .then(setBooking)
       .catch((err) => setError(err.message));
-  }, [bookingRef]);
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [bookingRef]);
+
+  // Which identity, if either, is allowed to act on this booking — and which auth/base path
+  // their requests use. A customer viewing their OWN booking and staff viewing ANY booking at
+  // their own business both get the same two actions, just routed to the endpoint that checks
+  // the matching ownership rule server-side (see routes/bookings.ts vs routes/staffBookings.ts).
+  const asOwner =
+    booking && customer && booking.customerId === customer.id
+      ? { authFetch: customerAuthFetch, basePath: "/api/bookings" }
+      : booking && user && booking.resource.businessId === user.businessId
+        ? { authFetch: authFetch, basePath: "/api/staff/bookings" }
+        : null;
+
+  async function handleCancel() {
+    if (!booking || !asOwner) return;
+    if (!window.confirm(`Cancel this ${booking.service.name} appointment?`)) return;
+    setCancelling(true);
+    setActionError(null);
+    try {
+      const res = await asOwner.authFetch(`${asOwner.basePath}/${booking.bookingRef}/cancel`, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
+      setBooking((prev) => (prev ? { ...prev, status: "CANCELLED" } : prev));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to cancel booking");
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 720 }}>
@@ -125,7 +175,40 @@ export default function BookingDetailsPage() {
               )}
             </Grid>
           </CardContent>
+
+          {/* Only rendered when the current viewer is actually allowed to act on this
+              booking (see asOwner above) AND it's still BOOKED — matches the same
+              status-gate CustomerBookingsPage uses for its row-level actions. */}
+          {asOwner && booking.status === "BOOKED" && (
+            <CardActions sx={{ px: 2, pb: 2 }}>
+              {actionError && (
+                <Alert severity="error" sx={{ width: "100%" }}>
+                  {actionError}
+                </Alert>
+              )}
+              <Button size="small" onClick={() => setRescheduleOpen(true)}>
+                Reschedule
+              </Button>
+              <Button size="small" color="error" disabled={cancelling} onClick={handleCancel}>
+                {cancelling ? "Cancelling…" : "Cancel booking"}
+              </Button>
+            </CardActions>
+          )}
         </Card>
+      )}
+
+      {booking && asOwner && (
+        <RescheduleDialog
+          open={rescheduleOpen}
+          onClose={() => setRescheduleOpen(false)}
+          authFetch={asOwner.authFetch}
+          basePath={asOwner.basePath}
+          bookingRef={booking.bookingRef}
+          resourceId={booking.resourceId}
+          serviceId={booking.serviceId}
+          currentStartTime={booking.startTime}
+          onRescheduled={(updated) => setBooking((prev) => (prev ? { ...prev, startTime: updated.startTime } : prev))}
+        />
       )}
     </Stack>
   );

@@ -44,6 +44,7 @@ import CustomerProfilePage from "./pages/customer/CustomerProfilePage";
 import CustomerBookingsPage from "./pages/customer/CustomerBookingsPage";
 import CustomerSecurityPage from "./pages/customer/CustomerSecurityPage";
 import CustomerNotificationsPage from "./pages/customer/CustomerNotificationsPage";
+import CustomerFavoritesPage from "./pages/customer/CustomerFavoritesPage";
 import RequireCustomerAuth from "./auth/RequireCustomerAuth";
 import AdminLayout from "./pages/admin/AdminLayout";
 import ResourcesAdminPage from "./pages/admin/ResourcesAdminPage";
@@ -81,6 +82,7 @@ const CUSTOMER_NAV_ITEMS: NavItem[] = [
   { to: "/services", label: "Services" },
   { to: "/book", label: "Book" },
   { to: "/customer/bookings", label: "My bookings" },
+  { to: "/customer/favorites", label: "Favorites" },
   { to: "/customer/account/profile", label: "Profile" },
 ];
 
@@ -279,6 +281,14 @@ export default function App() {
                 <Button
                   size="small"
                   component={RouterLink}
+                  to="/customer/favorites"
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  Favorites
+                </Button>
+                <Button
+                  size="small"
+                  component={RouterLink}
                   to="/customer/account/profile"
                   onClick={() => setDrawerOpen(false)}
                 >
@@ -414,6 +424,14 @@ export default function App() {
             element={
               <RequireCustomerAuth>
                 <CustomerNotificationsPage />
+              </RequireCustomerAuth>
+            }
+          />
+          <Route
+            path="/customer/favorites"
+            element={
+              <RequireCustomerAuth>
+                <CustomerFavoritesPage />
               </RequireCustomerAuth>
             }
           />

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { UserRole } from "@prisma/client";
 import { prisma } from "../db/prisma";
 import { createBooking } from "../services/bookingCreation";
+import { cancelBooking, rescheduleBooking } from "../services/bookingLifecycle";
 import { requireAuth, requireRole } from "../middleware/auth";
 
 const router = Router();
@@ -96,6 +97,46 @@ router.post("/bookings", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN
     console.error(err);
     res.status(500).json({ error: "Failed to create booking" });
   }
+});
+
+// POST /api/staff/bookings/:bookingRef/cancel — staff cancelling any booking (a customer's or
+// a walk-in's) at their own business. Ownership check is by businessId here, not customerId —
+// the customer-facing equivalent (routes/bookings.ts) checks the opposite.
+router.post("/bookings/:bookingRef/cancel", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async (req, res) => {
+  const booking = await prisma.booking.findUnique({
+    where: { bookingRef: req.params.bookingRef },
+    include: { resource: { select: { businessId: true } } },
+  });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.resource.businessId !== req.user!.businessId) {
+    return res.status(403).json({ error: "You don't have access to this booking" });
+  }
+
+  const result = await cancelBooking(req.params.bookingRef);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json(result.booking);
+});
+
+// PATCH /api/staff/bookings/:bookingRef/reschedule — staff moving any booking at their
+// business to a new time on the same service/resource. Body: { startTime }.
+router.patch("/bookings/:bookingRef/reschedule", requireAuth, requireRole(UserRole.STAFF, UserRole.ADMIN), async (req, res) => {
+  const { startTime } = req.body ?? {};
+  if (typeof startTime !== "string") {
+    return res.status(400).json({ error: "startTime is required" });
+  }
+
+  const booking = await prisma.booking.findUnique({
+    where: { bookingRef: req.params.bookingRef },
+    include: { resource: { select: { businessId: true } } },
+  });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.resource.businessId !== req.user!.businessId) {
+    return res.status(403).json({ error: "You don't have access to this booking" });
+  }
+
+  const result = await rescheduleBooking(req.params.bookingRef, startTime);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  res.json(result.booking);
 });
 
 export default router;

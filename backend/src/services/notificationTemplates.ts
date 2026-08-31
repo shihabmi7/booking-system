@@ -72,6 +72,15 @@ export function bookingConfirmed(booking: BookingLike): Template {
   };
 }
 
+export function bookingRescheduled(booking: BookingLike): Template {
+  const tz = booking.resource.business.timezone;
+  return {
+    title: "Booking rescheduled",
+    body: `Your ${booking.service.name} appointment has moved to ${formatDay(booking.startTime, tz)} at ${formatTime(booking.startTime, tz)} with ${booking.resource.name}.`,
+    data: deepLink(booking),
+  };
+}
+
 export function bookingCancelled(booking: BookingLike): Template {
   const tz = booking.resource.business.timezone;
   return {
