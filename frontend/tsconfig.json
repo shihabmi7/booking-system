@@ -10,7 +10,13 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": true
+    "strict": true,
+    // Lets test files use describe/it/expect/vi without an import in every file (matches
+    // vitest.config.ts's `test.globals: true`) — only affects type-checking, not the app build.
+    "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Colocated *.test.tsx files aren't part of the production build — Vitest compiles/runs
+  // them itself (see vitest.config.ts), `tsc -b` (npm run build) only needs the app's own code.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

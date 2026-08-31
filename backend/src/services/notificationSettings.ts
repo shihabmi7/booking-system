@@ -53,10 +53,15 @@ export async function updateSettings(businessId: string, input: UpdateInput): Pr
   }
 
   // Quiet hours only mean something as a pair — one half set alone would leave the window
-  // open-ended, and services/notifications.ts would have no second boundary to compare against.
+  // open-ended, and services/notifications.ts would have no second boundary to compare
+  // against. `undefined` (the field simply wasn't in this PATCH body) counts as "not paired"
+  // here too, not just an explicit null — a caller sending only quietHoursStart must not be
+  // able to silently leave a stale quietHoursEnd in place from some earlier update.
   const start = input.quietHoursStart;
   const end = input.quietHoursEnd;
-  if ((start === null && typeof end === "string") || (end === null && typeof start === "string")) {
+  const touchingStart = start !== undefined;
+  const touchingEnd = end !== undefined;
+  if (touchingStart !== touchingEnd) {
     return { ok: false, error: "quietHoursStart and quietHoursEnd must be set or cleared together." };
   }
 

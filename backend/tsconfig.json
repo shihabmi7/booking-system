@@ -27,5 +27,7 @@
     "sourceMap": true             // generates .js.map files alongside compiled output, so stack traces/debuggers
                                    // point back to your original .ts lines instead of compiled .js lines
   },
-  "include": ["src/**/*.ts"]      // only compile files under src/ — everything else (config files, tests elsewhere) is ignored
+  "include": ["src/**/*.ts"],     // only compile files under src/ — everything else (config files, tests elsewhere) is ignored
+  "exclude": ["src/**/*.test.ts"] // colocated unit tests (see src/services/*.test.ts) aren't part of the production build —
+                                   // Vitest compiles/runs them itself, tsc only needs to know about the app's own code
 }
