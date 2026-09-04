@@ -1,0 +1,68 @@
+# Booking System — Customer Mobile App
+
+React Native (Expo) customer app for the [booking system](../README.md). **Phase 0 of
+[`../mobile-app-plan.md`](../mobile-app-plan.md)** — tooling, routing, env config and a screen
+that proves a real network call reaches the backend. No feature screens yet.
+
+|                   |                                                 |
+| ----------------- | ----------------------------------------------- |
+| **Framework**     | Expo SDK 57 (managed workflow)                  |
+| **Runtime**       | React Native 0.86, React 19                     |
+| **Routing**       | Expo Router 6 (file-based, `app/`)              |
+| **Data fetching** | TanStack Query 5                                |
+| **Language**      | TypeScript 5 (strict)                           |
+| **Testing**       | Jest (jest-expo) + React Native Testing Library |
+
+## Run it
+
+The backend has to be running first — see the [root README](../README.md#quick-start):
+
+```bash
+docker compose up -d          # from the repo root
+cd backend && npm run dev     # http://localhost:4000
+```
+
+Then:
+
+```bash
+cd mobile
+npm install
+npm run android    # or: npm run ios
+```
+
+The first screen is a connection check. **"Backend reachable / Database connected" is the
+milestone** — it means device networking, Express and Postgres are all working end to end. It
+also prints the base URL it tried, which is the first thing you need when it doesn't work.
+
+### Where the API base URL comes from
+
+`src/api/config.ts` resolves it, in this order:
+
+1. `EXPO_PUBLIC_API_BASE_URL` from `.env`, if set (surfaced through `app.config.ts` → `extra`).
+2. Otherwise a per-platform localhost default.
+
+That default matters, because "localhost" is not one thing on a phone:
+
+| Where the app runs  | Reaches the backend at      | Why                                                                                                                                     |
+| ------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Android emulator    | `http://10.0.2.2:4000`      | `localhost` on an emulator is the emulator itself; `10.0.2.2` is the special alias for the host machine                                 |
+| iOS simulator       | `http://localhost:4000`     | The simulator shares the Mac's network stack                                                                                            |
+| **Physical device** | `http://<your-LAN-IP>:4000` | Neither default can work — set `EXPO_PUBLIC_API_BASE_URL` in `.env` (`cp .env.example .env`; find the IP with `ipconfig getifaddr en0`) |
+
+## Checks
+
+```bash
+npm test         # Jest + React Native Testing Library
+npm run typecheck
+npm run lint
+```
+
+All three run in CI on every push ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
+
+## Not done yet
+
+Still open from Phase 0: **Sentry** (needs an account and a DSN) and **EAS project setup**
+(`eas.json` has the three build profiles, but no EAS project is linked and no build has run).
+`.env.production` is deliberately a `.invalid` placeholder until the backend is actually
+deployed. Phase 1 onward — Paper theme, i18n, auth, booking — is described in
+[`../mobile-app-plan.md`](../mobile-app-plan.md).
