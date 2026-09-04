@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push to the same branch makes the in-flight run pointless, so cancel it rather
+# than paying for two runs of the same suite. `main` is excluded from cancellation via the
+# ref in the group key only incidentally — pushes there are rare enough not to matter.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Matches the Node the project is developed against. It matters: frontend `npm test` passes
+  # --no-experimental-webstorage, a flag that only exists on recent Node, and Node would abort
+  # on an unknown option rather than ignore it.
+  NODE_VERSION: "26.x"
+
+jobs:
+  backend:
+    name: Backend (Vitest + Supertest)
+    runs-on: ubuntu-latest
+
+    # The suite is integration-level — it truncates real tables between tests (tests/helpers/db.ts)
+    # rather than mocking Prisma, so CI needs a real Postgres. User, password, port and database
+    # name are exactly what backend/.env.test hardcodes, which is what lets tests/setup.ts load
+    # that file unmodified here: no CI-specific DATABASE_URL override, so a passing local run and
+    # a passing CI run mean the same thing.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: booking_user
+          POSTGRES_PASSWORD: booking_pass
+          POSTGRES_DB: booking_db_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U booking_user -d booking_db_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Explicit rather than relying on @prisma/client's postinstall: if the install is ever
+      # run with scripts disabled, the postinstall silently doesn't happen and the failure
+      # surfaces much later as a confusing "@prisma/client did not initialize yet".
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      # `migrate deploy`, not `migrate dev` — deploy applies committed migrations and nothing
+      # else. `dev` would try to author a new migration when schema.prisma and the migrations
+      # directory disagree, which is a thing CI should fail on, not paper over.
+      - name: Apply migrations to test database
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://booking_user:booking_pass@localhost:5432/booking_db_test
+
+      - name: Test
+        run: npm test
+
+      # ESLint isn't wired up yet (see CONTRIBUTING.md), so tsc is the only static check there
+      # is — worth running, since Vitest transpiles without type-checking and would happily run
+      # a suite that `tsc` rejects.
+      - name: Type-check / build
+        run: npm run build
+
+  frontend:
+    name: Frontend (Vitest + Testing Library)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Type-check / build
+        run: npm run build
