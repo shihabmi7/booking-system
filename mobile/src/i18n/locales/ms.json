@@ -32,5 +32,73 @@
     "dbDisconnected": "Pangkalan data TIDAK disambungkan",
     "unreachable": "Tidak dapat menghubungi backend",
     "checkAgain": "Semak semula"
+  },
+  "auth": {
+    "validation": {
+      "nameRequired": "Nama diperlukan",
+      "emailInvalid": "Masukkan alamat emel yang sah",
+      "passwordTooShort": "Kata laluan mestilah sekurang-kurangnya 8 aksara",
+      "passwordMismatch": "Kata laluan tidak sepadan",
+      "codeRequired": "Masukkan kod 6 digit"
+    },
+    "home": {
+      "title": "Anda telah log masuk",
+      "signedInAs": "Log masuk sebagai {{email}}",
+      "logOut": "Log keluar"
+    },
+    "register": {
+      "title": "Cipta akaun",
+      "subtitle": "Anda memerlukan akaun yang disahkan untuk menempah janji temu.",
+      "name": "Nama",
+      "email": "Emel",
+      "phone": "Telefon (pilihan)",
+      "password": "Kata laluan",
+      "passwordHelper": "Sekurang-kurangnya 8 aksara",
+      "confirmPassword": "Sahkan kata laluan",
+      "submit": "Cipta akaun",
+      "submitting": "Mencipta akaun…",
+      "haveAccount": "Sudah mempunyai akaun?",
+      "logIn": "Log masuk"
+    },
+    "verify": {
+      "title": "Sahkan emel anda",
+      "subtitle": "Masukkan kod 6 digit yang kami hantar ke emel anda.",
+      "email": "Emel",
+      "code": "Kod 6 digit",
+      "submit": "Sahkan",
+      "submitting": "Mengesahkan…",
+      "resend": "Hantar semula kod",
+      "resending": "Menghantar…"
+    },
+    "login": {
+      "title": "Log masuk",
+      "email": "Emel",
+      "password": "Kata laluan",
+      "submit": "Log masuk",
+      "submitting": "Log masuk…",
+      "forgotPassword": "Lupa kata laluan?",
+      "noAccount": "Baharu di sini?",
+      "createAccount": "Cipta akaun",
+      "verifyNow": "Sahkan sekarang"
+    },
+    "forgotPassword": {
+      "title": "Lupa kata laluan",
+      "subtitle": "Masukkan emel anda dan kami akan menghantar kod set semula.",
+      "email": "Emel",
+      "submit": "Hantar kod set semula",
+      "submitting": "Menghantar…",
+      "haveCode": "Saya sudah ada kod",
+      "backToLogin": "Kembali ke log masuk"
+    },
+    "resetPassword": {
+      "title": "Tetapkan semula kata laluan",
+      "email": "Emel",
+      "code": "Kod 6 digit",
+      "newPassword": "Kata laluan baharu",
+      "newPasswordHelper": "Sekurang-kurangnya 8 aksara",
+      "confirmPassword": "Sahkan kata laluan baharu",
+      "submit": "Tetapkan semula kata laluan",
+      "submitting": "Menetapkan semula…"
+    }
   }
 }

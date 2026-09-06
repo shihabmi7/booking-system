@@ -1,6 +1,6 @@
 import { screen, userEvent } from "@testing-library/react-native";
 
-import ConnectionCheckScreen from "../../app/index";
+import ConnectionCheckScreen from "../../app/debug-connection";
 import { renderWithProviders } from "../utils/render";
 import { getHealth } from "@/api/health";
 

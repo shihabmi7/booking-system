@@ -36,6 +36,10 @@ const config: ExpoConfig = {
     "expo-router",
     // Required by expo-localization for the native locale lookup getLocales() reads.
     "expo-localization",
+    // Required for the config plugin to set Android's `android:allowBackup="false"` — the JWT
+    // stored via SecureStore lives in the Keystore, but without this a full device backup could
+    // still round-trip the SharedPreferences file SecureStore uses to reference it.
+    "expo-secure-store",
     [
       "expo-splash-screen",
       {

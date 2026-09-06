@@ -60,4 +60,17 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/api/me")).rejects.toBeInstanceOf(ApiError);
   });
+
+  // Some error responses carry extra fields beyond `error` (e.g. customer login's `unverified`
+  // flag) that change which follow-up action a screen offers, not just what it displays — a call
+  // site needs the raw body to read those, not just the message string.
+  it("carries the parsed error body on the thrown error", async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({ error: "Please verify your email before logging in.", unverified: true }, false, 403),
+    );
+
+    await expect(apiFetch("/api/customer/login")).rejects.toMatchObject({
+      body: { error: "Please verify your email before logging in.", unverified: true },
+    });
+  });
 });

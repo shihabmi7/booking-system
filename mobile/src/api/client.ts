@@ -4,6 +4,11 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    // The backend sometimes sends extra fields alongside `error` (e.g. `unverified` on customer
+    // login) that change which follow-up action a screen offers, not just what it displays —
+    // carrying the raw body lets a call site read those without a second, message-string-based
+    // parse of an error that's meant to be prose, not a stable identifier.
+    readonly body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -31,11 +36,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!response.ok) {
     // The backend answers errors as { error: "..." }; fall back to the status line when the
     // failure happened before it could (a proxy, or a crash mid-response).
-    const message = await response
+    const body = await response
       .json()
-      .then((body: { error?: string }) => body.error)
-      .catch(() => undefined);
-    throw new ApiError(message ?? `Request failed with status ${response.status}`, response.status);
+      .catch(() => undefined) as { error?: string } | undefined;
+    throw new ApiError(body?.error ?? `Request failed with status ${response.status}`, response.status, body);
   }
 
   return (await response.json()) as T;

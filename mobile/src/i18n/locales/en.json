@@ -32,5 +32,73 @@
     "dbDisconnected": "Database NOT connected",
     "unreachable": "Could not reach the backend",
     "checkAgain": "Check again"
+  },
+  "auth": {
+    "validation": {
+      "nameRequired": "Name is required",
+      "emailInvalid": "Enter a valid email address",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordMismatch": "Passwords don't match",
+      "codeRequired": "Enter the 6-digit code"
+    },
+    "home": {
+      "title": "You're signed in",
+      "signedInAs": "Signed in as {{email}}",
+      "logOut": "Log out"
+    },
+    "register": {
+      "title": "Create an account",
+      "subtitle": "You'll need a verified account to book an appointment.",
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone (optional)",
+      "password": "Password",
+      "passwordHelper": "At least 8 characters",
+      "confirmPassword": "Confirm password",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "haveAccount": "Already have an account?",
+      "logIn": "Log in"
+    },
+    "verify": {
+      "title": "Verify your email",
+      "subtitle": "Enter the 6-digit code we sent to your email.",
+      "email": "Email",
+      "code": "6-digit code",
+      "submit": "Verify",
+      "submitting": "Verifying…",
+      "resend": "Resend code",
+      "resending": "Sending…"
+    },
+    "login": {
+      "title": "Log in",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Log in",
+      "submitting": "Logging in…",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "New here?",
+      "createAccount": "Create an account",
+      "verifyNow": "Verify now"
+    },
+    "forgotPassword": {
+      "title": "Forgot password",
+      "subtitle": "Enter your email and we'll send a reset code.",
+      "email": "Email",
+      "submit": "Send reset code",
+      "submitting": "Sending…",
+      "haveCode": "I already have a code",
+      "backToLogin": "Back to login"
+    },
+    "resetPassword": {
+      "title": "Reset password",
+      "email": "Email",
+      "code": "6-digit code",
+      "newPassword": "New password",
+      "newPasswordHelper": "At least 8 characters",
+      "confirmPassword": "Confirm new password",
+      "submit": "Reset password",
+      "submitting": "Resetting…"
+    }
   }
 }

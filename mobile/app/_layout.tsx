@@ -10,6 +10,7 @@ import { useColorScheme } from "react-native";
 import { PaperProvider } from "react-native-paper";
 
 import { queryClient } from "@/api/queryClient";
+import { CustomerAuthProvider } from "@/auth/CustomerAuthContext";
 import { initI18n, type Language } from "@/i18n";
 import { buildTheme } from "@/theme";
 
@@ -46,17 +47,19 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PaperProvider theme={theme}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            // The navigator paints its own background behind every screen; without this it stays
-            // white in dark mode and flashes on each transition.
-            contentStyle: { backgroundColor: theme.colors.background },
-          }}
-        />
-        <StatusBar style="auto" />
-      </PaperProvider>
+      <CustomerAuthProvider>
+        <PaperProvider theme={theme}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              // The navigator paints its own background behind every screen; without this it stays
+              // white in dark mode and flashes on each transition.
+              contentStyle: { backgroundColor: theme.colors.background },
+            }}
+          />
+          <StatusBar style="auto" />
+        </PaperProvider>
+      </CustomerAuthProvider>
     </QueryClientProvider>
   );
 }
