@@ -1,0 +1,36 @@
+{
+  "appName": "Booking System",
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "bn": "বাংলা",
+    "ms": "Melayu"
+  },
+  "nav": {
+    "home": "Home",
+    "book": "Book",
+    "bookings": "My Bookings",
+    "profile": "Profile"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "retry": "Try again",
+    "loading": "Loading…",
+    "close": "Close"
+  },
+  "errors": {
+    "network": "Could not reach the server. Check your connection and try again.",
+    "unexpected": "Something went wrong. Please try again.",
+    "sessionExpired": "Your session has expired. Please sign in again."
+  },
+  "connection": {
+    "checking": "Checking backend",
+    "reachable": "Backend reachable",
+    "dbConnected": "Database connected",
+    "dbDisconnected": "Database NOT connected",
+    "unreachable": "Could not reach the backend",
+    "checkAgain": "Check again"
+  }
+}

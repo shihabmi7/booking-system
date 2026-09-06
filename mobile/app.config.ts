@@ -34,6 +34,8 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    // Required by expo-localization for the native locale lookup getLocales() reads.
+    "expo-localization",
     [
       "expo-splash-screen",
       {

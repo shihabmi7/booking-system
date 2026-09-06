@@ -1,0 +1,36 @@
+{
+  "appName": "Sistem Tempahan",
+  "language": {
+    "label": "Bahasa",
+    "en": "English",
+    "bn": "বাংলা",
+    "ms": "Melayu"
+  },
+  "nav": {
+    "home": "Laman Utama",
+    "book": "Tempah",
+    "bookings": "Tempahan Saya",
+    "profile": "Profil"
+  },
+  "common": {
+    "cancel": "Batal",
+    "confirm": "Sahkan",
+    "save": "Simpan",
+    "retry": "Cuba lagi",
+    "loading": "Memuatkan…",
+    "close": "Tutup"
+  },
+  "errors": {
+    "network": "Tidak dapat menghubungi pelayan. Sila semak sambungan anda dan cuba lagi.",
+    "unexpected": "Sesuatu tidak kena. Sila cuba lagi.",
+    "sessionExpired": "Sesi anda telah tamat. Sila log masuk semula."
+  },
+  "connection": {
+    "checking": "Menyemak backend",
+    "reachable": "Backend boleh dihubungi",
+    "dbConnected": "Pangkalan data disambungkan",
+    "dbDisconnected": "Pangkalan data TIDAK disambungkan",
+    "unreachable": "Tidak dapat menghubungi backend",
+    "checkAgain": "Semak semula"
+  }
+}
