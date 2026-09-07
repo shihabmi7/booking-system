@@ -110,7 +110,11 @@ export default function ProfileScreen() {
           <IconButton
             icon="camera"
             mode="contained"
-            size={18}
+            // 28, not the visually-tighter 18 — react-native-paper's IconButton sizes its
+            // touchable container as `size + 16`, so this is the smallest value that still
+            // clears the 44pt/48dp minimum touch target both platforms' accessibility
+            // guidelines call for (18 alone would render a ~34pt target).
+            size={28}
             style={styles.avatarEditButton}
             loading={pictureMutation.isPending}
             onPress={pickPicture}

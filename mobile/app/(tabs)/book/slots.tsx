@@ -3,10 +3,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Chip, Text, useTheme } from "react-native-paper";
+import { Chip, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getSlots, type Slot } from "@/api/slots";
+import { EmptyState } from "@/components/EmptyState";
+import { Skeleton } from "@/components/Skeleton";
 import { formatDateChipLabel, formatTime, upcomingDateKeys } from "@/utils/dates";
 
 const DATE_STRIP_LENGTH = 14;
@@ -68,16 +70,23 @@ export default function SlotsScreen() {
       </ScrollView>
 
       <View style={styles.slotsSection}>
-        {slotsQuery.isPending && <ActivityIndicator accessibilityLabel={t("common.loading")} />}
+        {slotsQuery.isPending && (
+          <View style={styles.slotsGrid} accessibilityLabel={t("common.loading")}>
+            <Skeleton width={72} height={32} borderRadius={16} />
+            <Skeleton width={72} height={32} borderRadius={16} />
+            <Skeleton width={72} height={32} borderRadius={16} />
+            <Skeleton width={72} height={32} borderRadius={16} />
+          </View>
+        )}
 
         {slotsQuery.isError && <Text style={{ color: theme.colors.error }}>{t("book.slots.loadError")}</Text>}
 
         {slotsQuery.isSuccess && slotsQuery.data.note && (
-          <Text style={{ color: theme.colors.onSurfaceVariant }}>{slotsQuery.data.note}</Text>
+          <EmptyState icon="calendar-remove-outline" message={slotsQuery.data.note} />
         )}
 
         {slotsQuery.isSuccess && !slotsQuery.data.note && slotsQuery.data.slots.length === 0 && (
-          <Text style={{ color: theme.colors.onSurfaceVariant }}>{t("book.slots.noSlots")}</Text>
+          <EmptyState icon="clock-outline" message={t("book.slots.noSlots")} />
         )}
 
         {slotsQuery.isSuccess && slotsQuery.data.slots.length > 0 && (

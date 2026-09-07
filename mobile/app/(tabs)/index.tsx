@@ -2,6 +2,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { Button, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -16,7 +17,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.hero}>
+      <Animated.View entering={FadeIn.duration(400)} style={styles.hero}>
         <Text variant="headlineMedium">{t("home.title")}</Text>
         <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
           {t("home.subtitle")}
@@ -26,7 +27,7 @@ export default function HomeScreen() {
             {t("auth.home.signedInAs", { email: customer.email })}
           </Text>
         )}
-      </View>
+      </Animated.View>
 
       <View style={styles.actions}>
         <Button

@@ -1,9 +1,10 @@
 # Booking System — Customer Mobile App
 
-React Native (Expo) customer app for the [booking system](../README.md). **Phases 0-5 of
+React Native (Expo) customer app for the [booking system](../README.md). **Phases 0-6 of
 [`../mobile-app-plan.md`](../mobile-app-plan.md)** — tooling, routing, env config, the Paper theme,
-full localization, customer auth, the full booking flow, booking history, and profile/security.
-Polish, accessibility, and store readiness (Phases 6+) are next.
+full localization, customer auth, the full booking flow, booking history, profile/security, and a
+polish + accessibility pass. Store readiness (Phase 7+) needs real, paid developer accounts this
+plan can't set up unilaterally — see "Not done yet" below.
 
 |                   |                                                 |
 | ----------------- | ----------------------------------------------- |
@@ -130,6 +131,30 @@ All four verified live against a real backend + Postgres on an iOS Simulator: re
 → book a real open slot → see it in My Bookings with the right status chip → open its real QR
 code → edit the real profile.
 
+## Polish and accessibility (Phase 6)
+
+- **Skeletons** (`src/components/Skeleton.tsx`, a Reanimated pulsing block, plus `CardSkeleton`)
+  replace the bare spinners Services, My Bookings, booking details, and the slot picker used
+  through Phases 3-5 — a shape roughly matching the eventual content, not just "something is
+  loading."
+- **Empty states** (`src/components/EmptyState.tsx`) — an icon plus a message — replace bare text
+  for an empty services list, an empty My Bookings, and a date with no open slots (including the
+  closed-day `note` from the backend).
+- **Haptics**: `expo-haptics` fires a success notification at the two moments the plan calls out
+  specifically — a verified OTP (landing signed in) and a confirmed booking — not sprinkled
+  everywhere.
+- **Motion**: `react-native-reanimated`'s `FadeIn` on the Home hero and the Confirm screen's
+  review card — subtle, not a redesign.
+- **Accessibility pass**: the profile picture's edit button was `size={18}` (react-native-paper
+  sizes an `IconButton`'s touchable area as `size + 16`, so that rendered a ~34pt target); bumped
+  to `size={28}` to clear the 44pt/48dp minimum both platforms' guidelines call for. Interactive
+  cards (`Card` with `onPress`) carry an explicit `accessibilityRole="button"` — Paper's `Card`
+  doesn't set one on its own the way `Chip`/`Button` do.
+- **Dark mode** was already OS-following since Phase 1 (`src/theme/index.ts`); no separate
+  in-app toggle was added — the plan's "Light/dark mode via Paper's theme switching" reads as
+  the theme responding correctly, not a manual light/dark/system switch, and there was no
+  standalone request for one.
+
 ## Checks
 
 ```bash
@@ -164,7 +189,13 @@ yet written for Book/Bookings/Profile — Phase 2's precedent (API client + vali
 unit tests) is what's followed here too, but a full render-and-interact test per screen is
 still open work.
 
-Phase 6 (polish + accessibility pass) onward is described in
-[`../mobile-app-plan.md`](../mobile-app-plan.md). Phase 7 (production readiness) needs real,
-paid Apple Developer/Google Play accounts and a hosted privacy policy — business decisions this
-plan can't make unilaterally.
+Phase 6's accessibility review was a targeted pass (touch targets, roles, the two haptic
+touchpoints, empty states, skeletons) rather than a screen-by-screen audit with a real screen
+reader (VoiceOver/TalkBack) — that's still worth doing before a store submission, not something
+this pass claims to have covered.
+
+Phase 7 (production readiness) onward is described in [`../mobile-app-plan.md`](../mobile-app-plan.md)
+and needs real, paid Apple Developer ($99/yr) and Google Play ($25 one-time) accounts, a hosted
+privacy policy, store assets (icons, screenshots), and a Sentry account — business/ops decisions
+and payments this plan can't make unilaterally. Phases 8 (beta testing) and 9 (production release)
+both depend on Phase 7 actually being done for real, not just planned.

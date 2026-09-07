@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -46,6 +47,10 @@ export default function VerifyScreen() {
     setInfo(null);
     try {
       const session = await verifyOtp(values);
+      // A real "you're in" moment — the one step in the whole auth flow that ends with the
+      // customer suddenly signed in rather than just moving to another form, so it's one of
+      // the two haptic touchpoints the plan calls out (the other being a confirmed booking).
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await setSession(session.token, session.customer);
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : t("errors.network"));

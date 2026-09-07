@@ -2,12 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Image, ScrollView, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Card, Text, useTheme } from "react-native-paper";
+import { Card, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "@/api/client";
 import { getBooking } from "@/api/bookings";
 import { BookingStatusChip } from "@/components/BookingStatusChip";
+import { Skeleton } from "@/components/Skeleton";
 import { formatDateTime } from "@/utils/dates";
 import { formatPrice } from "@/utils/currency";
 
@@ -41,8 +42,14 @@ export default function BookingDetailsScreen() {
       <Stack.Screen options={{ title: t("bookingDetails.title"), headerShown: true }} />
 
       {query.isPending && (
-        <View style={styles.center}>
-          <ActivityIndicator accessibilityLabel={t("common.loading")} />
+        <View style={styles.content} accessibilityLabel={t("common.loading")}>
+          <Skeleton width="30%" height={28} />
+          <Skeleton width="70%" />
+          <Skeleton width="50%" />
+          <Skeleton width="80%" />
+          <Skeleton width="60%" />
+          <Skeleton width="50%" />
+          <Skeleton width={200} height={200} style={styles.qrSkeleton} />
         </View>
       )}
 
@@ -111,4 +118,5 @@ const styles = StyleSheet.create({
   qrCard: { marginTop: 12, alignSelf: "center" },
   qrCardContent: { alignItems: "center", gap: 12 },
   qrImage: { width: 200, height: 200 },
+  qrSkeleton: { alignSelf: "center", marginTop: 12 },
 });

@@ -2,10 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { FlatList, StyleSheet, View } from "react-native";
-import { ActivityIndicator, Card, Text, useTheme } from "react-native-paper";
+import { Card, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getServices, type Service } from "@/api/services";
+import { CardSkeleton } from "@/components/Skeleton";
+import { EmptyState } from "@/components/EmptyState";
 import { formatPrice } from "@/utils/currency";
 
 // Step 1 of the Book flow: every service across every business/resource, public data (no auth
@@ -34,8 +36,10 @@ export default function ServicesScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       {services.isPending && (
-        <View style={styles.center}>
-          <ActivityIndicator accessibilityLabel={t("common.loading")} />
+        <View style={styles.list} accessibilityLabel={t("common.loading")}>
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </View>
       )}
 
@@ -46,9 +50,7 @@ export default function ServicesScreen() {
       )}
 
       {services.isSuccess && services.data.length === 0 && (
-        <View style={styles.center}>
-          <Text>{t("book.services.empty")}</Text>
-        </View>
+        <EmptyState icon="calendar-blank-outline" message={t("book.services.empty")} />
       )}
 
       {services.isSuccess && services.data.length > 0 && (

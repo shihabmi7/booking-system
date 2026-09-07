@@ -1,8 +1,10 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, View } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { Card, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -52,6 +54,9 @@ export default function ConfirmScreen() {
         idempotencyKey,
       }),
     onSuccess: (booking) => {
+      // The other of the plan's two haptic touchpoints — a booking just went from "maybe" to
+      // "on the calendar," which is worth more than the silent screen transition alone conveys.
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace(`/bookings/${booking.bookingRef}`);
     },
     onError: (err) => {
@@ -68,23 +73,25 @@ export default function ConfirmScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
-      <Card mode="outlined">
-        <Card.Content style={styles.details}>
-          <Text variant="titleMedium">{params.serviceName}</Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant }}>
-            {params.businessName} — {params.resourceName}
-          </Text>
-          <Text style={{ color: theme.colors.onSurfaceVariant }}>
-            {t("book.services.priceDuration", {
-              duration: params.durationMins,
-              price: formatPrice(params.price),
-            })}
-          </Text>
-          <Text variant="titleSmall" style={styles.time}>
-            {formatDateTime(params.startTime, i18n.language)}
-          </Text>
-        </Card.Content>
-      </Card>
+      <Animated.View entering={FadeIn.duration(300)}>
+        <Card mode="outlined">
+          <Card.Content style={styles.details}>
+            <Text variant="titleMedium">{params.serviceName}</Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant }}>
+              {params.businessName} — {params.resourceName}
+            </Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant }}>
+              {t("book.services.priceDuration", {
+                duration: params.durationMins,
+                price: formatPrice(params.price),
+              })}
+            </Text>
+            <Text variant="titleSmall" style={styles.time}>
+              {formatDateTime(params.startTime, i18n.language)}
+            </Text>
+          </Card.Content>
+        </Card>
+      </Animated.View>
 
       <Text style={{ color: theme.colors.onSurfaceVariant }}>
         {t("book.confirm.bookingAs", { name: customer.name, email: customer.email })}
