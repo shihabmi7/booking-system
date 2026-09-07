@@ -1,23 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { Chip, Text, useTheme } from "react-native-paper";
+import { StyleSheet, View } from "react-native";
+import { Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { getSlots, type Slot } from "@/api/slots";
-import { EmptyState } from "@/components/EmptyState";
-import { Skeleton } from "@/components/Skeleton";
-import { formatDateChipLabel, formatTime, upcomingDateKeys } from "@/utils/dates";
+import type { Slot } from "@/api/slots";
+import { DateSlotPicker } from "@/components/DateSlotPicker";
 
-const DATE_STRIP_LENGTH = 14;
-
-// Step 2 of the Book flow. A rolling date strip (see utils/dates.ts for why, not a full
-// calendar) plus the open slots for whichever date is selected — reruns the query on every
-// date change, the same "re-fetch slots on service/date change" behavior BookPage has on web.
+// Step 2 of the Book flow — the date/slot picker itself is shared with Reschedule, see
+// src/components/DateSlotPicker.tsx.
 export default function SlotsScreen() {
-  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const params = useLocalSearchParams<{
     resourceId: string;
@@ -28,14 +19,6 @@ export default function SlotsScreen() {
     resourceName: string;
     businessName: string;
   }>();
-
-  const dateKeys = upcomingDateKeys(DATE_STRIP_LENGTH);
-  const [selectedDate, setSelectedDate] = useState(dateKeys[0]);
-
-  const slotsQuery = useQuery({
-    queryKey: ["slots", params.resourceId, params.serviceId, selectedDate],
-    queryFn: () => getSlots(params.resourceId, params.serviceId, selectedDate),
-  });
 
   function selectSlot(slot: Slot) {
     router.push({
@@ -53,57 +36,7 @@ export default function SlotsScreen() {
         </Text>
       </View>
 
-      <Text variant="labelLarge" style={styles.sectionLabel}>
-        {t("book.slots.selectDate")}
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
-        {dateKeys.map((dateKey) => (
-          <Chip
-            key={dateKey}
-            selected={dateKey === selectedDate}
-            onPress={() => setSelectedDate(dateKey)}
-            style={styles.dateChip}
-          >
-            {formatDateChipLabel(dateKey, i18n.language)}
-          </Chip>
-        ))}
-      </ScrollView>
-
-      <View style={styles.slotsSection}>
-        {slotsQuery.isPending && (
-          <View style={styles.slotsGrid} accessibilityLabel={t("common.loading")}>
-            <Skeleton width={72} height={32} borderRadius={16} />
-            <Skeleton width={72} height={32} borderRadius={16} />
-            <Skeleton width={72} height={32} borderRadius={16} />
-            <Skeleton width={72} height={32} borderRadius={16} />
-          </View>
-        )}
-
-        {slotsQuery.isError && <Text style={{ color: theme.colors.error }}>{t("book.slots.loadError")}</Text>}
-
-        {slotsQuery.isSuccess && slotsQuery.data.note && (
-          <EmptyState icon="calendar-remove-outline" message={slotsQuery.data.note} />
-        )}
-
-        {slotsQuery.isSuccess && !slotsQuery.data.note && slotsQuery.data.slots.length === 0 && (
-          <EmptyState icon="clock-outline" message={t("book.slots.noSlots")} />
-        )}
-
-        {slotsQuery.isSuccess && slotsQuery.data.slots.length > 0 && (
-          <>
-            <Text variant="labelLarge" style={styles.sectionLabel}>
-              {t("book.slots.availableTimes")}
-            </Text>
-            <View style={styles.slotsGrid}>
-              {slotsQuery.data.slots.map((slot) => (
-                <Chip key={slot.startTime} onPress={() => selectSlot(slot)}>
-                  {formatTime(slot.startTime, i18n.language)}
-                </Chip>
-              ))}
-            </View>
-          </>
-        )}
-      </View>
+      <DateSlotPicker resourceId={params.resourceId} serviceId={params.serviceId} onSelectSlot={selectSlot} />
     </SafeAreaView>
   );
 }
@@ -111,9 +44,4 @@ export default function SlotsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, gap: 4 },
   header: { gap: 2, marginBottom: 8 },
-  sectionLabel: { marginTop: 12, marginBottom: 8 },
-  dateStrip: { gap: 8, paddingRight: 16 },
-  dateChip: {},
-  slotsSection: { marginTop: 4 },
-  slotsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 });

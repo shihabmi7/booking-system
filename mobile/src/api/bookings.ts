@@ -10,10 +10,15 @@ export const BOOKING_STATUSES = ["BOOKED", "CHECKED_IN", "COMPLETED", "NO_SHOW",
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 // The shape GET /api/customer/bookings returns — matches backend/src/routes/customer.ts's
-// `include`, no qrCode (that's only generated on the single-booking lookup below).
+// `include`, no qrCode (that's only generated on the single-booking lookup below). `include`
+// (rather than `select`) on the backend means every scalar column on Booking comes through
+// alongside the nested service/resource — resourceId/serviceId included, which Reschedule
+// needs to know what to re-query /api/slots for.
 export type BookingSummary = {
   id: string;
   bookingRef: string;
+  resourceId: string;
+  serviceId: string;
   startTime: string;
   status: BookingStatus;
   service: { name: string; durationMins: number; price: string };
@@ -28,6 +33,8 @@ export type BookingDetails = {
   bookingRef: string;
   customerName: string;
   customerId: string | null;
+  resourceId: string;
+  serviceId: string;
   status: BookingStatus;
   startTime: string;
   service: { name: string; durationMins: number; price: string };
@@ -56,4 +63,25 @@ export function getBooking(bookingRef: string): Promise<BookingDetails> {
 // scoped server-side by the token (no bookingRef/customerId query param).
 export function getMyBookings(authedFetch: AuthedFetch): Promise<BookingSummary[]> {
   return authedFetch<BookingSummary[]>("/api/customer/bookings");
+}
+
+// POST /api/bookings/:bookingRef/cancel — ownership is checked server-side against the
+// token's customerId (see backend/src/routes/bookings.ts), never a request body field, so
+// there's nothing else to pass here.
+export function cancelBooking(authedFetch: AuthedFetch, bookingRef: string): Promise<BookingDetails> {
+  return authedFetch<BookingDetails>(`/api/bookings/${bookingRef}/cancel`, { method: "POST" });
+}
+
+// PATCH /api/bookings/:bookingRef/reschedule — same service/resource, a new startTime only;
+// changing service or resource isn't supported here (that's a cancel + a fresh booking), matching
+// the backend route's own comment.
+export function rescheduleBooking(
+  authedFetch: AuthedFetch,
+  bookingRef: string,
+  startTime: string,
+): Promise<BookingDetails> {
+  return authedFetch<BookingDetails>(`/api/bookings/${bookingRef}/reschedule`, {
+    method: "PATCH",
+    body: JSON.stringify({ startTime }),
+  });
 }

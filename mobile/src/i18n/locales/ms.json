@@ -112,7 +112,12 @@
       "title": "Tempah janji temu",
       "loadError": "Gagal memuatkan perkhidmatan.",
       "empty": "Belum ada perkhidmatan tersedia.",
-      "priceDuration": "{{duration}} minit · {{price}}"
+      "priceDuration": "{{duration}} minit · {{price}}",
+      "filterAll": "Semua",
+      "filterFavorites": "Kegemaran",
+      "noFavorites": "Belum ada kegemaran. Ketik ikon hati pada perkhidmatan untuk menambah.",
+      "favorite": "Tambah ke kegemaran",
+      "unfavorite": "Keluarkan daripada kegemaran"
     },
     "slots": {
       "title": "Pilih masa",
@@ -152,7 +157,17 @@
     "qrCaption": "Tunjukkan kod QR ini semasa daftar masuk",
     "qrAccessibilityLabel": "Kod QR untuk tempahan {{ref}}",
     "notFound": "Tempahan tidak dijumpai.",
-    "loadError": "Gagal memuatkan tempahan ini."
+    "loadError": "Gagal memuatkan tempahan ini.",
+    "cancelAction": "Batalkan tempahan",
+    "cancelConfirmTitle": "Batalkan tempahan?",
+    "cancelConfirmMessage": "Batalkan janji temu {{service}} anda?",
+    "cancelConfirmAction": "Ya, batalkan",
+    "reschedule": {
+      "action": "Tukar masa",
+      "title": "Tukar masa tempahan",
+      "currently": "Masa semasa: {{time}}",
+      "submitting": "Menyimpan masa baharu…"
+    }
   },
   "profile": {
     "name": "Nama",

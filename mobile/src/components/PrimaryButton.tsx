@@ -9,16 +9,27 @@ export function PrimaryButton({
   loading,
   disabled,
   mode = "contained",
+  textColor,
   children,
 }: {
   onPress: () => void;
   loading: boolean;
   disabled?: boolean;
   mode?: "contained" | "text";
+  // For a destructive text-mode action (e.g. "Cancel booking") — Paper's Button has no
+  // built-in "error" color variant the way MUI's Button color="error" does.
+  textColor?: string;
   children: ReactNode;
 }) {
   return (
-    <Button mode={mode} onPress={onPress} loading={loading} disabled={loading || disabled} style={styles.button}>
+    <Button
+      mode={mode}
+      onPress={onPress}
+      loading={loading}
+      disabled={loading || disabled}
+      textColor={textColor}
+      style={styles.button}
+    >
       {children}
     </Button>
   );

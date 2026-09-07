@@ -108,16 +108,26 @@ it re-checks auth status.
   calendar widget — deliberately, to avoid a new native dependency
   (`@react-native-community/datetimepicker` isn't installed) for a booking window that's
   realistically always "the next couple of weeks." Confirm generates one idempotency key per
-  screen mount (`src/utils/idempotencyKey.ts`) so a retried submit can't double-book.
-- **Booking details** (`app/bookings/[bookingRef].tsx`): deliberately public/unauthenticated,
+  screen mount (`src/utils/idempotencyKey.ts`) so a retried submit can't double-book. The
+  services list also carries a heart toggle per row plus an All/Favorites filter over the same
+  list (`GET/POST/DELETE /api/favorites`, added after the initial build — see the audit note in
+  `../mobile-app-plan.md`) — optimistic, with a rollback on failure.
+- **Booking details** (`app/bookings/[bookingRef]/index.tsx`): deliberately public/unauthenticated,
   matching both the backend route and the web app's identical choice — a real QR scan should
   link straight in with no login. Reused for two purposes: the screen a fresh booking lands on,
-  and what tapping a row in My Bookings opens.
+  and what tapping a row in My Bookings opens. Reschedule/Cancel only render when the current
+  session's customer owns the booking AND it's still BOOKED (`isOwner`/`canModify` computed
+  against `useCustomerAuth()`, matching web's `asOwner` gating) — a signed-out viewer or a real
+  QR scan sees the same read-only details either way.
+- **Reschedule** (`app/bookings/[bookingRef]/reschedule.tsx`): a full-screen push, not a modal
+  dialog the way the web app's `RescheduleDialog` is — reuses the Book stack's date/slot picker
+  (`src/components/DateSlotPicker.tsx`, extracted from `book/slots.tsx` for this reuse) against
+  the booking's own resourceId/serviceId (read off the same `["booking", bookingRef]` query
+  `book/slots.tsx` reused, so no params need passing through the URL).
 - **My Bookings** (`app/(tabs)/bookings/`): `FlatList` + pull-to-refresh against
-  `GET /api/customer/bookings`. View-only for now — no cancel/reschedule from the app yet, even
-  though the backend supports both (see `backend/src/routes/bookings.ts`); the plan's Phase 4
-  scope was list + details, not booking management, so that's a deliberate scope line, not an
-  oversight.
+  `GET /api/customer/bookings`, with the same Reschedule/Cancel row actions as the details screen
+  (only while a row is BOOKED). `Alert.alert` — RN's `window.confirm` equivalent — confirms a
+  cancel before it fires, matching the web app's own confirm-then-cancel flow.
 - **Profile** (`app/(tabs)/profile/`): name/phone edit, picture upload
   (`expo-image-picker`, permission strings in `app.config.ts`), the language switcher, a link to
   **Security** (change password), and Log out. `queryClient.clear()` runs on logout so a second
@@ -127,9 +137,10 @@ it re-checks auth status.
   gets handled — it logs the customer out and raises `SessionExpiredError`, mirroring the web
   app's `useCustomerAuthFetch`.
 
-All four verified live against a real backend + Postgres on an iOS Simulator: register → verify
-→ book a real open slot → see it in My Bookings with the right status chip → open its real QR
-code → edit the real profile.
+All of this verified live against a real backend + Postgres on an iOS Simulator: register →
+verify → book a real open slot → favorite a service (confirmed persisted via `GET /api/favorites`)
+→ see the booking in My Bookings with the right status chip → open its real QR code →
+reschedule it to a different real open slot → cancel it → edit the real profile.
 
 ## Polish and accessibility (Phase 6)
 
@@ -181,13 +192,19 @@ purpose, as the one place to fix once the business's actual currency is known.
 `app.config.ts` has no `android.package` / `ios.bundleIdentifier` yet — that's Phase 7's App
 Store/Play Console setup — so `.maestro/register-verify-login.yaml`'s `appId` is a placeholder.
 
-Cancel/reschedule from the app, and a Maestro flow covering Book/My Bookings/Profile, are natural
-fast-follows but weren't in Phases 3-5's stated scope (see mobile-app-plan.md) — only the Phase 2
-register→verify→login flow has a Maestro script so far. Screen-level component tests
-(React Native Testing Library rendering a full screen, not just its API/logic layer) are also not
-yet written for Book/Bookings/Profile — Phase 2's precedent (API client + validation + context
-unit tests) is what's followed here too, but a full render-and-interact test per screen is
-still open work.
+A feature audit against the web app (`frontend/src/pages/customer/`) found favorites, cancel,
+and reschedule missing from the original Phases 3-5 — not deferred on purpose, just not in the
+initial phase list. All three are now implemented (see the Favorites/Reschedule/Cancel notes
+above); `mobile-app-plan.md` documents the audit and where each landed. The same audit found the
+in-app notifications inbox (`/customer/notifications` — distinct from push notifications, which
+stay out of scope) missing too, and that one is deliberately still deferred.
+
+A Maestro flow covering Book/My Bookings/Profile (including the new favorite/cancel/reschedule
+actions) is a natural fast-follow but doesn't exist yet — only the Phase 2 register→verify→login
+flow has a Maestro script so far. Screen-level component tests (React Native Testing Library
+rendering a full screen, not just its API/logic layer) are also not yet written for
+Book/Bookings/Profile — Phase 2's precedent (API client + validation + context unit tests) is
+what's followed here too, but a full render-and-interact test per screen is still open work.
 
 Phase 6's accessibility review was a targeted pass (touch targets, roles, the two haptic
 touchpoints, empty states, skeletons) rather than a screen-by-screen audit with a real screen

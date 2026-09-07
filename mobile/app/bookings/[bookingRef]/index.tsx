@@ -1,13 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Image, ScrollView, StyleSheet, View } from "react-native";
 import { Card, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "@/api/client";
-import { getBooking } from "@/api/bookings";
+import { cancelBooking, getBooking } from "@/api/bookings";
+import { useAuthedFetch } from "@/auth/useAuthedFetch";
+import { useCustomerAuth } from "@/auth/CustomerAuthContext";
 import { BookingStatusChip } from "@/components/BookingStatusChip";
+import { PrimaryButton } from "@/components/PrimaryButton";
 import { Skeleton } from "@/components/Skeleton";
 import { formatDateTime } from "@/utils/dates";
 import { formatPrice } from "@/utils/currency";
@@ -25,22 +28,56 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // Public/unauthenticated on purpose, matching backend/src/routes/bookings.ts's GET
 // /:bookingRef and the web app's identical choice (frontend/src/pages/BookingDetailsPage.tsx,
 // not wrapped in RequireCustomerAuth) — a real QR scan links straight into this screen with no
-// login involved. Reached two ways here: booking Confirm's success (router.replace), and a row
-// tap in My Bookings (Phase 4) — one screen, not two, same reuse the web app makes.
+// login involved. Reached three ways here: booking Confirm's success (router.replace), a row
+// tap in My Bookings, and back from Reschedule.
+//
+// Cancel/Reschedule are only shown when the CURRENT session's customer owns this booking and it
+// is still BOOKED — a signed-out viewer (or a customer viewing someone else's shared link, if
+// that were ever possible) sees the same read-only details a QR scan does.
 export default function BookingDetailsScreen() {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const { bookingRef } = useLocalSearchParams<{ bookingRef: string }>();
+  const { customer } = useCustomerAuth();
+  const authedFetch = useAuthedFetch();
+  const queryClient = useQueryClient();
 
   const query = useQuery({
     queryKey: ["booking", bookingRef],
     queryFn: () => getBooking(bookingRef),
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelBooking(authedFetch, bookingRef),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["booking", bookingRef], updated);
+      void queryClient.invalidateQueries({ queryKey: ["customerBookings"] });
+    },
+    onError: (err) => {
+      Alert.alert(t("errors.unexpected"), err instanceof ApiError ? err.message : t("errors.network"));
+    },
+  });
+
+  function confirmCancel() {
+    if (!query.data) return;
+    // RN has no window.confirm equivalent — Alert.alert with a destructive action button is
+    // the native pattern both platforms use for "are you sure," matching the web app's
+    // window.confirm() at the same decision point (CustomerBookingsPage/BookingDetailsPage).
+    Alert.alert(
+      t("bookingDetails.cancelConfirmTitle"),
+      t("bookingDetails.cancelConfirmMessage", { service: query.data.service.name }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("bookingDetails.cancelConfirmAction"), style: "destructive", onPress: () => cancelMutation.mutate() },
+      ],
+    );
+  }
+
+  const isOwner = !!(customer && query.data && query.data.customerId === customer.id);
+  const canModify = isOwner && query.data?.status === "BOOKED";
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
-      <Stack.Screen options={{ title: t("bookingDetails.title"), headerShown: true }} />
-
       {query.isPending && (
         <View style={styles.content} accessibilityLabel={t("common.loading")}>
           <Skeleton width="30%" height={28} />
@@ -101,6 +138,22 @@ export default function BookingDetailsScreen() {
               </Card.Content>
             </Card>
           )}
+
+          {canModify && (
+            <View style={styles.actions}>
+              <PrimaryButton mode="text" loading={false} onPress={() => router.push(`/bookings/${bookingRef}/reschedule`)}>
+                {t("bookingDetails.reschedule.action")}
+              </PrimaryButton>
+              <PrimaryButton
+                mode="text"
+                textColor={theme.colors.error}
+                loading={cancelMutation.isPending}
+                onPress={confirmCancel}
+              >
+                {t("bookingDetails.cancelAction")}
+              </PrimaryButton>
+            </View>
+          )}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -119,4 +172,5 @@ const styles = StyleSheet.create({
   qrCardContent: { alignItems: "center", gap: 12 },
   qrImage: { width: 200, height: 200 },
   qrSkeleton: { alignSelf: "center", marginTop: 12 },
+  actions: { flexDirection: "row", justifyContent: "center", gap: 8, marginTop: 12 },
 });

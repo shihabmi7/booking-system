@@ -112,7 +112,12 @@
       "title": "অ্যাপয়েন্টমেন্ট বুক করুন",
       "loadError": "সেবা লোড করা যায়নি।",
       "empty": "এখনো কোনো সেবা উপলব্ধ নেই।",
-      "priceDuration": "{{duration}} মিনিট · {{price}}"
+      "priceDuration": "{{duration}} মিনিট · {{price}}",
+      "filterAll": "সব",
+      "filterFavorites": "পছন্দের তালিকা",
+      "noFavorites": "এখনো কোনো পছন্দ নেই। কোনো সেবায় হৃদয় আইকনে চাপ দিয়ে যোগ করুন।",
+      "favorite": "পছন্দের তালিকায় যোগ করুন",
+      "unfavorite": "পছন্দের তালিকা থেকে সরান"
     },
     "slots": {
       "title": "সময় বেছে নিন",
@@ -152,7 +157,17 @@
     "qrCaption": "চেক-ইনের সময় এই QR কোডটি দেখান",
     "qrAccessibilityLabel": "বুকিং {{ref}} এর QR কোড",
     "notFound": "বুকিং পাওয়া যায়নি।",
-    "loadError": "এই বুকিং লোড করা যায়নি।"
+    "loadError": "এই বুকিং লোড করা যায়নি।",
+    "cancelAction": "বুকিং বাতিল করুন",
+    "cancelConfirmTitle": "বুকিং বাতিল করবেন?",
+    "cancelConfirmMessage": "আপনার {{service}} অ্যাপয়েন্টমেন্ট বাতিল করবেন?",
+    "cancelConfirmAction": "হ্যাঁ, বাতিল করুন",
+    "reschedule": {
+      "action": "সময় পরিবর্তন করুন",
+      "title": "বুকিং সময় পরিবর্তন করুন",
+      "currently": "বর্তমান সময়: {{time}}",
+      "submitting": "নতুন সময় সংরক্ষণ করা হচ্ছে…"
+    }
   },
   "profile": {
     "name": "নাম",

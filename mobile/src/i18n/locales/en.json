@@ -112,7 +112,12 @@
       "title": "Book an appointment",
       "loadError": "Failed to load services.",
       "empty": "No services available yet.",
-      "priceDuration": "{{duration}} min · {{price}}"
+      "priceDuration": "{{duration}} min · {{price}}",
+      "filterAll": "All",
+      "filterFavorites": "Favorites",
+      "noFavorites": "No favorites yet. Tap the heart on a service to add one.",
+      "favorite": "Add to favorites",
+      "unfavorite": "Remove from favorites"
     },
     "slots": {
       "title": "Pick a time",
@@ -152,7 +157,17 @@
     "qrCaption": "Show this QR code at check-in",
     "qrAccessibilityLabel": "QR code for booking {{ref}}",
     "notFound": "Booking not found.",
-    "loadError": "Failed to load this booking."
+    "loadError": "Failed to load this booking.",
+    "cancelAction": "Cancel booking",
+    "cancelConfirmTitle": "Cancel booking?",
+    "cancelConfirmMessage": "Cancel your {{service}} appointment?",
+    "cancelConfirmAction": "Yes, cancel",
+    "reschedule": {
+      "action": "Reschedule",
+      "title": "Reschedule booking",
+      "currently": "Currently: {{time}}",
+      "submitting": "Saving new time…"
+    }
   },
   "profile": {
     "name": "Name",
