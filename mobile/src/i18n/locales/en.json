@@ -1,0 +1,189 @@
+{
+  "appName": "Booking System",
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "bn": "বাংলা",
+    "ms": "Melayu"
+  },
+  "nav": {
+    "home": "Home",
+    "book": "Book",
+    "bookings": "My Bookings",
+    "profile": "Profile"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "retry": "Try again",
+    "loading": "Loading…",
+    "close": "Close"
+  },
+  "errors": {
+    "network": "Could not reach the server. Check your connection and try again.",
+    "unexpected": "Something went wrong. Please try again.",
+    "sessionExpired": "Your session has expired. Please sign in again."
+  },
+  "connection": {
+    "checking": "Checking backend",
+    "reachable": "Backend reachable",
+    "dbConnected": "Database connected",
+    "dbDisconnected": "Database NOT connected",
+    "unreachable": "Could not reach the backend",
+    "checkAgain": "Check again"
+  },
+  "auth": {
+    "validation": {
+      "nameRequired": "Name is required",
+      "emailInvalid": "Enter a valid email address",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "passwordMismatch": "Passwords don't match",
+      "codeRequired": "Enter the 6-digit code"
+    },
+    "home": {
+      "title": "You're signed in",
+      "signedInAs": "Signed in as {{email}}",
+      "logOut": "Log out"
+    },
+    "register": {
+      "title": "Create an account",
+      "subtitle": "You'll need a verified account to book an appointment.",
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone (optional)",
+      "password": "Password",
+      "passwordHelper": "At least 8 characters",
+      "confirmPassword": "Confirm password",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "haveAccount": "Already have an account?",
+      "logIn": "Log in"
+    },
+    "verify": {
+      "title": "Verify your email",
+      "subtitle": "Enter the 6-digit code we sent to your email.",
+      "email": "Email",
+      "code": "6-digit code",
+      "submit": "Verify",
+      "submitting": "Verifying…",
+      "resend": "Resend code",
+      "resending": "Sending…"
+    },
+    "login": {
+      "title": "Log in",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Log in",
+      "submitting": "Logging in…",
+      "forgotPassword": "Forgot password?",
+      "noAccount": "New here?",
+      "createAccount": "Create an account",
+      "verifyNow": "Verify now"
+    },
+    "forgotPassword": {
+      "title": "Forgot password",
+      "subtitle": "Enter your email and we'll send a reset code.",
+      "email": "Email",
+      "submit": "Send reset code",
+      "submitting": "Sending…",
+      "haveCode": "I already have a code",
+      "backToLogin": "Back to login"
+    },
+    "resetPassword": {
+      "title": "Reset password",
+      "email": "Email",
+      "code": "6-digit code",
+      "newPassword": "New password",
+      "newPasswordHelper": "At least 8 characters",
+      "confirmPassword": "Confirm new password",
+      "submit": "Reset password",
+      "submitting": "Resetting…"
+    }
+  },
+  "home": {
+    "title": "Book your appointment",
+    "subtitle": "Pick a service and an open time slot.",
+    "bookCta": "Book an appointment",
+    "bookingsCta": "My bookings"
+  },
+  "book": {
+    "services": {
+      "title": "Book an appointment",
+      "loadError": "Failed to load services.",
+      "empty": "No services available yet.",
+      "priceDuration": "{{duration}} min · {{price}}",
+      "filterAll": "All",
+      "filterFavorites": "Favorites",
+      "noFavorites": "No favorites yet. Tap the heart on a service to add one.",
+      "favorite": "Add to favorites",
+      "unfavorite": "Remove from favorites"
+    },
+    "slots": {
+      "title": "Pick a time",
+      "selectDate": "Date",
+      "availableTimes": "Available times",
+      "noSlots": "No open slots for this date.",
+      "loadError": "Failed to load available times."
+    },
+    "confirm": {
+      "title": "Confirm booking",
+      "bookingAs": "Booking as {{name}} ({{email}})",
+      "submit": "Confirm booking",
+      "submitting": "Booking…"
+    }
+  },
+  "bookings": {
+    "loadError": "Failed to load your bookings.",
+    "empty": "No bookings yet.",
+    "status": {
+      "label": "Status: {{status}}",
+      "BOOKED": "Booked",
+      "CHECKED_IN": "Checked in",
+      "COMPLETED": "Completed",
+      "NO_SHOW": "No-show",
+      "CANCELLED": "Cancelled"
+    }
+  },
+  "bookingDetails": {
+    "title": "Booking details",
+    "status": "Status",
+    "reference": "Reference",
+    "customer": "Customer",
+    "service": "Service",
+    "serviceValue": "{{name}} ({{duration}} min, {{price}})",
+    "provider": "Provider",
+    "time": "Time",
+    "qrCaption": "Show this QR code at check-in",
+    "qrAccessibilityLabel": "QR code for booking {{ref}}",
+    "notFound": "Booking not found.",
+    "loadError": "Failed to load this booking.",
+    "cancelAction": "Cancel booking",
+    "cancelConfirmTitle": "Cancel booking?",
+    "cancelConfirmMessage": "Cancel your {{service}} appointment?",
+    "cancelConfirmAction": "Yes, cancel",
+    "reschedule": {
+      "action": "Reschedule",
+      "title": "Reschedule booking",
+      "currently": "Currently: {{time}}",
+      "submitting": "Saving new time…"
+    }
+  },
+  "profile": {
+    "name": "Name",
+    "phone": "Phone",
+    "updated": "Profile updated.",
+    "pictureUpdated": "Profile picture updated.",
+    "pictureLibraryPermissionDenied": "Photo library access is needed to change your picture.",
+    "changePicture": "Change profile picture",
+    "logOut": "Log out",
+    "security": {
+      "title": "Change password",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm new password",
+      "submit": "Change password",
+      "submitting": "Changing…"
+    }
+  }
+}

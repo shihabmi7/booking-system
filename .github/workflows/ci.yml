@@ -111,3 +111,35 @@ jobs:
 
       - name: Type-check / build
         run: npm run build
+
+  mobile:
+    name: Mobile (Jest + RNTL)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Unlike backend/frontend there is no `build` here — a native build needs EAS, not a
+      # runner. `tsc --noEmit` is the equivalent check: Jest and Metro both transpile without
+      # type-checking, so nothing else in this job would catch a type error.
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
