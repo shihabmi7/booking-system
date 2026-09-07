@@ -15,6 +15,8 @@ plan can't set up unilaterally — see "Not done yet" below.
 | **Language**      | TypeScript 5 (strict)                           |
 | **Testing**       | Jest (jest-expo) + React Native Testing Library |
 
+<img src="screenshots/home.png" alt="Home screen" width="280">
+
 ## Run it
 
 The backend has to be running first — see the [root README](../README.md#quick-start):

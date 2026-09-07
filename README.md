@@ -43,6 +43,19 @@ Customer books a slot  →  gets a QR code  →  reminder push 6h and 1h before
 | **Routing** | React Router 6 |
 | **Testing** | Vitest + React Testing Library |
 
+### Mobile
+
+| | |
+| --- | --- |
+| **Framework** | React Native (Expo SDK 57, managed workflow) |
+| **Routing** | Expo Router 6 |
+| **Language** | TypeScript 5 |
+| **UI library** | React Native Paper (Material 3) |
+| **Data fetching** | TanStack Query 5 |
+| **Testing** | Jest (jest-expo) + React Native Testing Library |
+
+See [`mobile/README.md`](mobile/README.md) for the full customer mobile app.
+
 ### Infrastructure
 
 | | |
@@ -130,6 +143,14 @@ gets a 401.
 
 Shared components: `NotificationBell` (unread badge, in the app bar) and `RescheduleDialog`
 (used by both the customer and staff reschedule flows).
+
+### Mobile
+
+The customer app is also available as a native React Native (Expo) client — same backend, same
+`/api/customer/*` endpoints. See [`mobile/README.md`](mobile/README.md) for the full screen list
+and setup.
+
+<img src="mobile/screenshots/home.png" alt="Mobile app home screen" width="280">
 
 ---
 
