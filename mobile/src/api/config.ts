@@ -17,3 +17,12 @@ const DEV_FALLBACK_BASE_URL = Platform.select({
 const configured = Constants.expoConfig?.extra?.apiBaseUrl as string | undefined;
 
 export const API_BASE_URL = configured?.trim() ? configured.trim() : DEV_FALLBACK_BASE_URL;
+
+// The profile picture endpoint (POST /api/customer/me/picture) returns a path relative to the
+// backend, e.g. "/uploads/profile-pictures/xyz.png" — a browser's <img> resolves that against
+// the current page origin for free, but React Native's <Image> has no origin to resolve
+// against, so a relative uri just fails to load with no visible error. Already-absolute URLs
+// (http/https) pass through untouched, since a future CDN-backed URL wouldn't need this at all.
+export function resolveAssetUrl(path: string): string {
+  return /^https?:\/\//.test(path) ? path : `${API_BASE_URL}${path}`;
+}

@@ -100,5 +100,75 @@
       "submit": "Reset password",
       "submitting": "Resetting…"
     }
+  },
+  "home": {
+    "title": "Book your appointment",
+    "subtitle": "Pick a service and an open time slot.",
+    "bookCta": "Book an appointment",
+    "bookingsCta": "My bookings"
+  },
+  "book": {
+    "services": {
+      "title": "Book an appointment",
+      "loadError": "Failed to load services.",
+      "empty": "No services available yet.",
+      "priceDuration": "{{duration}} min · {{price}}"
+    },
+    "slots": {
+      "title": "Pick a time",
+      "selectDate": "Date",
+      "availableTimes": "Available times",
+      "noSlots": "No open slots for this date.",
+      "loadError": "Failed to load available times."
+    },
+    "confirm": {
+      "title": "Confirm booking",
+      "bookingAs": "Booking as {{name}} ({{email}})",
+      "submit": "Confirm booking",
+      "submitting": "Booking…"
+    }
+  },
+  "bookings": {
+    "loadError": "Failed to load your bookings.",
+    "empty": "No bookings yet.",
+    "status": {
+      "label": "Status: {{status}}",
+      "BOOKED": "Booked",
+      "CHECKED_IN": "Checked in",
+      "COMPLETED": "Completed",
+      "NO_SHOW": "No-show",
+      "CANCELLED": "Cancelled"
+    }
+  },
+  "bookingDetails": {
+    "title": "Booking details",
+    "status": "Status",
+    "reference": "Reference",
+    "customer": "Customer",
+    "service": "Service",
+    "serviceValue": "{{name}} ({{duration}} min, {{price}})",
+    "provider": "Provider",
+    "time": "Time",
+    "qrCaption": "Show this QR code at check-in",
+    "qrAccessibilityLabel": "QR code for booking {{ref}}",
+    "notFound": "Booking not found.",
+    "loadError": "Failed to load this booking."
+  },
+  "profile": {
+    "name": "Name",
+    "phone": "Phone",
+    "updated": "Profile updated.",
+    "pictureUpdated": "Profile picture updated.",
+    "pictureLibraryPermissionDenied": "Photo library access is needed to change your picture.",
+    "changePicture": "Change profile picture",
+    "logOut": "Log out",
+    "security": {
+      "title": "Change password",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm new password",
+      "submit": "Change password",
+      "submitting": "Changing…"
+    }
   }
 }

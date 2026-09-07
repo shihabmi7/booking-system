@@ -24,11 +24,16 @@ export class ApiError extends Error {
  * hooks expect, so a Result type would just be unwrapped back into a throw at every call site.
  */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  // A FormData body (the profile picture upload) must NOT get an explicit Content-Type — fetch
+  // sets multipart/form-data with the correct boundary itself, and overriding it here breaks
+  // the upload silently (the request looks fine, the backend's multer just can't parse it).
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       Accept: "application/json",
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(init?.body && !isFormData ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });

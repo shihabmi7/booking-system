@@ -40,6 +40,16 @@ const config: ExpoConfig = {
     // stored via SecureStore lives in the Keystore, but without this a full device backup could
     // still round-trip the SharedPreferences file SecureStore uses to reference it.
     "expo-secure-store",
+    // Permission usage strings for the profile-picture upload (Phase 5) — both stores reject a
+    // submission with a missing usage description (see mobile-app-plan.md's Phase 7 note), and
+    // iOS crashes the picker outright with no NSPhotoLibraryUsageDescription at all, not just a
+    // denied-permission dialog.
+    [
+      "expo-image-picker",
+      {
+        photosPermission: "Used to set your profile picture.",
+      },
+    ],
     [
       "expo-splash-screen",
       {

@@ -1,0 +1,81 @@
+import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Card, Text, useTheme } from "react-native-paper";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { getMyBookings, type BookingSummary } from "@/api/bookings";
+import { useAuthedFetch } from "@/auth/useAuthedFetch";
+import { BookingStatusChip } from "@/components/BookingStatusChip";
+import { formatDateTime } from "@/utils/dates";
+
+// Phase 4: GET /api/customer/bookings, scoped server-side to the logged-in customer — most
+// recent first, no query params. FlatList (not a mapped ScrollView) specifically so
+// pull-to-refresh and eventual long-list virtualization come for free, per the plan's screen
+// spec for this tab.
+export default function MyBookingsScreen() {
+  const { t, i18n } = useTranslation();
+  const theme = useTheme();
+  const authedFetch = useAuthedFetch();
+
+  const query = useQuery({
+    queryKey: ["customerBookings"],
+    queryFn: () => getMyBookings(authedFetch),
+  });
+
+  function openBooking(booking: BookingSummary) {
+    router.push(`/bookings/${booking.bookingRef}`);
+  }
+
+  return (
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
+      {query.isPending && (
+        <View style={styles.center}>
+          <ActivityIndicator accessibilityLabel={t("common.loading")} />
+        </View>
+      )}
+
+      {query.isError && (
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.error }}>{t("bookings.loadError")}</Text>
+        </View>
+      )}
+
+      {query.isSuccess && (
+        <FlatList
+          data={query.data}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={query.data.length === 0 ? styles.emptyList : styles.list}
+          refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => query.refetch()} />}
+          ListEmptyComponent={<Text style={{ color: theme.colors.onSurfaceVariant }}>{t("bookings.empty")}</Text>}
+          renderItem={({ item }) => (
+            <Card mode="outlined" onPress={() => openBooking(item)} accessibilityRole="button">
+              <Card.Content style={styles.row}>
+                <View style={styles.rowMain}>
+                  <Text variant="titleMedium">{item.service.name}</Text>
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                    {formatDateTime(item.startTime, i18n.language)}
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    {item.resource.business.name}
+                  </Text>
+                </View>
+                <BookingStatusChip status={item.status} />
+              </Card.Content>
+            </Card>
+          )}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  list: { padding: 16, gap: 12 },
+  emptyList: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  rowMain: { flex: 1, gap: 2 },
+});

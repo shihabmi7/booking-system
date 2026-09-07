@@ -1,9 +1,9 @@
 # Booking System — Customer Mobile App
 
-React Native (Expo) customer app for the [booking system](../README.md). **Phases 0-2 of
-[`../mobile-app-plan.md`](../mobile-app-plan.md)** — tooling, routing, env config, the Paper theme
-and full localization, and now customer auth (register, verify, log in, forgot/reset password).
-Booking, bookings history, and profile screens start at Phase 3.
+React Native (Expo) customer app for the [booking system](../README.md). **Phases 0-5 of
+[`../mobile-app-plan.md`](../mobile-app-plan.md)** — tooling, routing, env config, the Paper theme,
+full localization, customer auth, the full booking flow, booking history, and profile/security.
+Polish, accessibility, and store readiness (Phases 6+) are next.
 
 |                   |                                                 |
 | ----------------- | ----------------------------------------------- |
@@ -31,11 +31,12 @@ npm install
 npm run android    # or: npm run ios
 ```
 
-The first screen is now the auth entry point: **Register → Verify OTP → land signed in** (or
-**Log in**, if you already have an account) is the Phase 2 milestone. The OTP is only
-console.logged by the backend for now (`[OTP] EMAIL_VERIFY code for customer ...`) — real email
-delivery is Phase 6 work — so watch the `backend && npm run dev` terminal for the code after
-registering.
+The first screen is the auth entry point: **Register → Verify OTP → land signed in** (or
+**Log in**, if you already have an account). The OTP is only console.logged by the backend for
+now (`[OTP] EMAIL_VERIFY code for customer ...`) — real email delivery is Phase 6 (AWS) work — so
+watch the `backend && npm run dev` terminal for the code after registering. Once signed in, the
+bottom tab bar is Home / Book / My Bookings / Profile — book a service end to end, see it in your
+history with its QR code, and edit your profile.
 
 The Phase 0 connection-check screen (device networking, Express, Postgres end to end, with the
 resolved base URL printed) still exists at `/debug-connection` — open it from the dev menu's URL
@@ -83,17 +84,51 @@ Two things worth knowing before adding strings:
 `localStorage` tradeoff the web app accepts, except mobile has a secure-by-default option. The
 customer profile itself (not a credential) stays in plain AsyncStorage. Restoring a session from
 either is async, which is why auth status is `"loading" | "signedIn" | "signedOut"` rather than
-just a boolean — `app/index.tsx` holds a spinner on `"loading"` rather than flashing the login
-screen for someone who is actually still signed in.
+just a boolean — `src/auth/RequireCustomerAuth.tsx` holds a spinner on `"loading"` rather than
+flashing the login screen for someone who is actually still signed in.
 
 Screens live under `app/(auth)/` (register, verify, login, forgot-password, reset-password) and
 validate with `react-hook-form` + `zod` schemas built from the active language
 (`src/auth/validation.ts`) — so a validation message switches with the language switcher, not
-just the labels around it. `app/(auth)/_layout.tsx` and `app/index.tsx` guard each other: signed
-out redirects out of `/`, signed in redirects out of `/(auth)/*`.
+just the labels around it. `app/(auth)/_layout.tsx` and `app/(tabs)/_layout.tsx` guard each
+other: signed out redirects out of `/(tabs)/*`, signed in redirects out of `/(auth)/*`.
 
 `.maestro/register-verify-login.yaml` is the Phase 2 end-to-end flow. It needs the OTP code
 supplied manually (`-e OTP_CODE=...`) — see the comment at the top of that file for why.
+
+## Book, My Bookings, and Profile (Phases 3-5)
+
+Everything past login lives under `app/(tabs)/`, one `RequireCustomerAuth` boundary
+(`src/auth/RequireCustomerAuth.tsx`) wrapping the whole tab group — no individual screen inside
+it re-checks auth status.
+
+- **Book** (`app/(tabs)/book/`): Services list → date/slot picker → confirm, three screens
+  matching the plan's spec exactly. The date picker is a rolling 14-day chip strip, not a
+  calendar widget — deliberately, to avoid a new native dependency
+  (`@react-native-community/datetimepicker` isn't installed) for a booking window that's
+  realistically always "the next couple of weeks." Confirm generates one idempotency key per
+  screen mount (`src/utils/idempotencyKey.ts`) so a retried submit can't double-book.
+- **Booking details** (`app/bookings/[bookingRef].tsx`): deliberately public/unauthenticated,
+  matching both the backend route and the web app's identical choice — a real QR scan should
+  link straight in with no login. Reused for two purposes: the screen a fresh booking lands on,
+  and what tapping a row in My Bookings opens.
+- **My Bookings** (`app/(tabs)/bookings/`): `FlatList` + pull-to-refresh against
+  `GET /api/customer/bookings`. View-only for now — no cancel/reschedule from the app yet, even
+  though the backend supports both (see `backend/src/routes/bookings.ts`); the plan's Phase 4
+  scope was list + details, not booking management, so that's a deliberate scope line, not an
+  oversight.
+- **Profile** (`app/(tabs)/profile/`): name/phone edit, picture upload
+  (`expo-image-picker`, permission strings in `app.config.ts`), the language switcher, a link to
+  **Security** (change password), and Log out. `queryClient.clear()` runs on logout so a second
+  customer signing in on the same device never flashes the previous one's cached bookings/profile
+  for a moment.
+- **`src/auth/useAuthedFetch.ts`** is the one place a 401 from any customer-auth-gated endpoint
+  gets handled — it logs the customer out and raises `SessionExpiredError`, mirroring the web
+  app's `useCustomerAuthFetch`.
+
+All four verified live against a real backend + Postgres on an iOS Simulator: register → verify
+→ book a real open slot → see it in My Bookings with the right status chip → open its real QR
+code → edit the real profile.
 
 ## Checks
 
@@ -114,11 +149,22 @@ Still open from Phase 0: **Sentry** (needs an account and a DSN) and **EAS proje
 `.env.production` is deliberately a `.invalid` placeholder until the backend is actually deployed.
 
 The Bangla and Malay translations are a first pass and have not been reviewed by a native speaker.
-Currency formatting is also still undecided — the plan flags that the web app prints raw `$` strings
-with no currency logic, and that needs a real answer before Phase 3 renders prices.
+Currency formatting is also still undecided — the plan flagged that the web app prints raw `$`
+strings with no currency logic, and `src/utils/currency.ts`'s `formatPrice` does the same on
+purpose, as the one place to fix once the business's actual currency is known.
 
 `app.config.ts` has no `android.package` / `ios.bundleIdentifier` yet — that's Phase 7's App
 Store/Play Console setup — so `.maestro/register-verify-login.yaml`'s `appId` is a placeholder.
 
-Phase 3 onward — booking, my-bookings, profile — is described in
-[`../mobile-app-plan.md`](../mobile-app-plan.md).
+Cancel/reschedule from the app, and a Maestro flow covering Book/My Bookings/Profile, are natural
+fast-follows but weren't in Phases 3-5's stated scope (see mobile-app-plan.md) — only the Phase 2
+register→verify→login flow has a Maestro script so far. Screen-level component tests
+(React Native Testing Library rendering a full screen, not just its API/logic layer) are also not
+yet written for Book/Bookings/Profile — Phase 2's precedent (API client + validation + context
+unit tests) is what's followed here too, but a full render-and-interact test per screen is
+still open work.
+
+Phase 6 (polish + accessibility pass) onward is described in
+[`../mobile-app-plan.md`](../mobile-app-plan.md). Phase 7 (production readiness) needs real,
+paid Apple Developer/Google Play accounts and a hosted privacy policy — business decisions this
+plan can't make unilaterally.

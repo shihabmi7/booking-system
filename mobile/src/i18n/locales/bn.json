@@ -100,5 +100,75 @@
       "submit": "পাসওয়ার্ড রিসেট করুন",
       "submitting": "রিসেট করা হচ্ছে…"
     }
+  },
+  "home": {
+    "title": "আপনার অ্যাপয়েন্টমেন্ট বুক করুন",
+    "subtitle": "একটি সেবা এবং খালি সময় বেছে নিন।",
+    "bookCta": "অ্যাপয়েন্টমেন্ট বুক করুন",
+    "bookingsCta": "আমার বুকিং"
+  },
+  "book": {
+    "services": {
+      "title": "অ্যাপয়েন্টমেন্ট বুক করুন",
+      "loadError": "সেবা লোড করা যায়নি।",
+      "empty": "এখনো কোনো সেবা উপলব্ধ নেই।",
+      "priceDuration": "{{duration}} মিনিট · {{price}}"
+    },
+    "slots": {
+      "title": "সময় বেছে নিন",
+      "selectDate": "তারিখ",
+      "availableTimes": "উপলব্ধ সময়",
+      "noSlots": "এই তারিখে কোনো খালি সময় নেই।",
+      "loadError": "উপলব্ধ সময় লোড করা যায়নি।"
+    },
+    "confirm": {
+      "title": "বুকিং নিশ্চিত করুন",
+      "bookingAs": "{{name}} ({{email}}) হিসেবে বুক করা হচ্ছে",
+      "submit": "বুকিং নিশ্চিত করুন",
+      "submitting": "বুক করা হচ্ছে…"
+    }
+  },
+  "bookings": {
+    "loadError": "আপনার বুকিং লোড করা যায়নি।",
+    "empty": "এখনো কোনো বুকিং নেই।",
+    "status": {
+      "label": "অবস্থা: {{status}}",
+      "BOOKED": "বুক করা হয়েছে",
+      "CHECKED_IN": "চেক-ইন হয়েছে",
+      "COMPLETED": "সম্পন্ন",
+      "NO_SHOW": "উপস্থিত হননি",
+      "CANCELLED": "বাতিল হয়েছে"
+    }
+  },
+  "bookingDetails": {
+    "title": "বুকিং বিবরণ",
+    "status": "অবস্থা",
+    "reference": "রেফারেন্স",
+    "customer": "গ্রাহক",
+    "service": "সেবা",
+    "serviceValue": "{{name}} ({{duration}} মিনিট, {{price}})",
+    "provider": "প্রদানকারী",
+    "time": "সময়",
+    "qrCaption": "চেক-ইনের সময় এই QR কোডটি দেখান",
+    "qrAccessibilityLabel": "বুকিং {{ref}} এর QR কোড",
+    "notFound": "বুকিং পাওয়া যায়নি।",
+    "loadError": "এই বুকিং লোড করা যায়নি।"
+  },
+  "profile": {
+    "name": "নাম",
+    "phone": "ফোন",
+    "updated": "প্রোফাইল হালনাগাদ হয়েছে।",
+    "pictureUpdated": "প্রোফাইল ছবি হালনাগাদ হয়েছে।",
+    "pictureLibraryPermissionDenied": "ছবি পরিবর্তন করতে ফটো লাইব্রেরির অনুমতি প্রয়োজন।",
+    "changePicture": "প্রোফাইল ছবি পরিবর্তন করুন",
+    "logOut": "লগ আউট",
+    "security": {
+      "title": "পাসওয়ার্ড পরিবর্তন করুন",
+      "currentPassword": "বর্তমান পাসওয়ার্ড",
+      "newPassword": "নতুন পাসওয়ার্ড",
+      "confirmPassword": "নতুন পাসওয়ার্ড নিশ্চিত করুন",
+      "submit": "পাসওয়ার্ড পরিবর্তন করুন",
+      "submitting": "পরিবর্তন করা হচ্ছে…"
+    }
   }
 }

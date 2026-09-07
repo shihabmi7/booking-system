@@ -100,5 +100,75 @@
       "submit": "Tetapkan semula kata laluan",
       "submitting": "Menetapkan semula…"
     }
+  },
+  "home": {
+    "title": "Tempah janji temu anda",
+    "subtitle": "Pilih perkhidmatan dan slot masa yang kosong.",
+    "bookCta": "Tempah janji temu",
+    "bookingsCta": "Tempahan saya"
+  },
+  "book": {
+    "services": {
+      "title": "Tempah janji temu",
+      "loadError": "Gagal memuatkan perkhidmatan.",
+      "empty": "Belum ada perkhidmatan tersedia.",
+      "priceDuration": "{{duration}} minit · {{price}}"
+    },
+    "slots": {
+      "title": "Pilih masa",
+      "selectDate": "Tarikh",
+      "availableTimes": "Masa tersedia",
+      "noSlots": "Tiada slot kosong untuk tarikh ini.",
+      "loadError": "Gagal memuatkan masa tersedia."
+    },
+    "confirm": {
+      "title": "Sahkan tempahan",
+      "bookingAs": "Menempah sebagai {{name}} ({{email}})",
+      "submit": "Sahkan tempahan",
+      "submitting": "Menempah…"
+    }
+  },
+  "bookings": {
+    "loadError": "Gagal memuatkan tempahan anda.",
+    "empty": "Belum ada tempahan.",
+    "status": {
+      "label": "Status: {{status}}",
+      "BOOKED": "Ditempah",
+      "CHECKED_IN": "Sudah daftar masuk",
+      "COMPLETED": "Selesai",
+      "NO_SHOW": "Tidak hadir",
+      "CANCELLED": "Dibatalkan"
+    }
+  },
+  "bookingDetails": {
+    "title": "Butiran tempahan",
+    "status": "Status",
+    "reference": "Rujukan",
+    "customer": "Pelanggan",
+    "service": "Perkhidmatan",
+    "serviceValue": "{{name}} ({{duration}} minit, {{price}})",
+    "provider": "Penyedia",
+    "time": "Masa",
+    "qrCaption": "Tunjukkan kod QR ini semasa daftar masuk",
+    "qrAccessibilityLabel": "Kod QR untuk tempahan {{ref}}",
+    "notFound": "Tempahan tidak dijumpai.",
+    "loadError": "Gagal memuatkan tempahan ini."
+  },
+  "profile": {
+    "name": "Nama",
+    "phone": "Telefon",
+    "updated": "Profil dikemas kini.",
+    "pictureUpdated": "Gambar profil dikemas kini.",
+    "pictureLibraryPermissionDenied": "Akses pustaka foto diperlukan untuk menukar gambar anda.",
+    "changePicture": "Tukar gambar profil",
+    "logOut": "Log keluar",
+    "security": {
+      "title": "Tukar kata laluan",
+      "currentPassword": "Kata laluan semasa",
+      "newPassword": "Kata laluan baharu",
+      "confirmPassword": "Sahkan kata laluan baharu",
+      "submit": "Tukar kata laluan",
+      "submitting": "Menukar…"
+    }
   }
 }
