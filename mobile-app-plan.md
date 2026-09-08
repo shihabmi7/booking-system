@@ -114,19 +114,40 @@ Tabs: Home · Book · My Bookings · Profile
 
 Home            — hero + "Book an appointment" / "My bookings" CTAs (mirrors HomePage)
 Auth stack      — Register → Verify OTP → Login → Forgot Password → Reset Password
-Book stack      — Services list (optional service preselect) → Date/slot picker → Confirm
+Book stack      — Services list (optional service preselect, favorite toggle + an "All /
+                  Favorites" filter — one screen/row-renderer for both, same reuse the backend's
+                  own GET /api/favorites comment calls out) → Date/slot picker → Confirm
                   → Booking confirmation (QR from the existing base64 PNG data URL)
 My Bookings     — list (pull-to-refresh, FlatList not a mapped ScrollView) → Booking details
+                  (QR). Cancel and Reschedule act on a BOOKED booking from either the list row
+                  or the details screen, matching web's CustomerBookingsPage/BookingDetailsPage
+                  gating (only shown for the booking's own owner, only while status is BOOKED).
+                  Reschedule is a pushed screen reusing the Book stack's date/slot picker
+                  (`src/components/DateSlotPicker.tsx`), not a modal dialog the way the web app's
+                  RescheduleDialog is — full-screen fits the multi-step date→slot selection
+                  better on a phone than a cramped dialog would.
 Profile         — view/edit name+phone, picture upload, language switcher
   └ Security    — change password
 ```
+
+**Added after the initial Phase 3-6 build**, once compared feature-by-feature against the web
+app: favoriting, cancel, and reschedule existed on web (`/customer/favorites`,
+`CustomerBookingsPage`'s row actions, `RescheduleDialog`) but were missing from this plan
+entirely — not deferred on purpose, just not in the original phase list. Folded into Phase 3
+(favorites — it's the same services screen) and Phase 4 (cancel/reschedule — it's the same
+bookings list/details screens) rather than given their own phase numbers, since neither needs
+new navigation structure. The in-app notifications inbox (`/customer/notifications` — distinct
+from push notifications, which stay out of scope, see below) was found in the same audit and
+deliberately left out of this round.
 
 ## API integration
 
 No backend changes. A thin API client wraps `fetch` with the stored token attached and a
 shared 401 handler (clear session, redirect to Login) — the same shape as `useCustomerAuthFetch`
-on web. Hits `/api/customer/*`, public `/api/services` + `/api/slots`, and customer-auth-gated
-`POST /api/bookings` / `GET /api/bookings/:bookingRef`.
+on web. Hits `/api/customer/*`, public `/api/services` + `/api/slots`, customer-auth-gated
+`POST /api/bookings` / `GET /api/bookings/:bookingRef`, and (added in the audit above)
+`GET/POST/DELETE /api/favorites` and `POST /:bookingRef/cancel` / `PATCH /:bookingRef/reschedule`
+on the bookings routes.
 
 ## Making the UI feel polished, not just functional
 
@@ -193,12 +214,14 @@ token storage. Unit tests for the auth API client and form validation; a Maestro
 register → verify → land logged in.
 
 ### Phase 3 — Book flow
-Services list → date/slot picker → confirm → booking confirmation screen with QR. Maestro flow
-covering an end-to-end booking.
+Services list → date/slot picker → confirm → booking confirmation screen with QR. Favoriting
+(heart toggle per service, an "All / Favorites" filter over the same list) is part of this phase,
+added after the fact — see the audit note above. Maestro flow covering an end-to-end booking.
 
 ### Phase 4 — My Bookings + booking details
 List (FlatList, pull-to-refresh) → booking details screen, matching what's already scoped
-server-side (`GET /api/customer/bookings`).
+server-side (`GET /api/customer/bookings`). Cancel and Reschedule (added after the fact — see the
+audit note above) act on a BOOKED booking from either the list row or the details screen.
 
 ### Phase 5 — Profile + Security
 Edit name/phone, picture upload (with iOS/Android permission-string setup — see Phase 7),
@@ -249,8 +272,10 @@ hotfixes without a new review cycle.
 ## Explicitly out of scope for this plan
 
 Staff/admin mobile functionality (stays web-only), push notifications (a natural companion to
-the planned SES/Lambda no-show sweep, but its own scoped addition, not folded in here), and
-offline support. Worth naming as deliberately deferred, not forgotten.
+the planned SES/Lambda no-show sweep, but its own scoped addition, not folded in here), the
+in-app notifications inbox (`/customer/notifications` on web — found in the same feature audit
+that added favorites/cancel/reschedule above, deliberately left for a later round rather than
+folded in), and offline support. Worth naming as deliberately deferred, not forgotten.
 
 ## Next step
 

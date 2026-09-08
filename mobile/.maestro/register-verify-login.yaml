@@ -1,0 +1,53 @@
+# Phase 2's required E2E flow (see ../../mobile-app-plan.md, Phase 2 and
+# ../../mobile-testing-plan.md, section 4, flow 1): register → verify OTP → land on Home, signed
+# in. Run against a dev client or `preview` EAS build with the local backend already running
+# (see ../README.md#run-it):
+#
+#   maestro test .maestro/register-verify-login.yaml \
+#     -e CUSTOMER_EMAIL=ada.$(date +%s)@example.com \
+#     -e OTP_CODE=123456
+#
+# appId is a placeholder — app.config.ts has no android.package / ios.bundleIdentifier yet
+# (that's Phase 7's App Store/Play Console setup); update this once those are set, the same way
+# .env.production is a deliberate placeholder until Phase 6's backend deployment exists.
+#
+# CUSTOMER_EMAIL must be one this backend hasn't seen before, or /register 409s with "An account
+# with this email already exists" — hence the timestamp in the example above rather than a fixed
+# literal, which would only pass once per database.
+#
+# OTP_CODE is the one thing this flow cannot obtain by itself: the backend only console.logs the
+# code (see backend/src/services/otp.ts — real email delivery is Phase 6 work), so there is
+# nowhere in the UI or in any API response to read it from. Supply it from whatever already has
+# the backend's stdout — a human watching the terminal while running this locally, or a CI step
+# that greps the log for "[OTP] EMAIL_VERIFY code for customer ... : ######" before invoking
+# `maestro test`.
+appId: com.example.bookingsystemcustomer
+env:
+  CUSTOMER_EMAIL: customer@example.com
+  OTP_CODE: "000000"
+---
+- launchApp:
+    clearState: true # A previously signed-in session would otherwise redirect straight to Home.
+
+# --- Register -----------------------------------------------------------------------------
+- tapOn: "Name"
+- inputText: "Ada Lovelace"
+- tapOn: "Email"
+- inputText: "${CUSTOMER_EMAIL}"
+- tapOn: "Password"
+- inputText: "Password123"
+- tapOn: "Confirm password"
+- inputText: "Password123"
+- tapOn: "Create account"
+
+# --- Verify OTP -----------------------------------------------------------------------------
+- assertVisible: "Verify your email"
+- assertVisible: "${CUSTOMER_EMAIL}" # Carried over from Register via the router param, not retyped.
+- tapOn: "6-digit code"
+- inputText: "${OTP_CODE}"
+- tapOn: "Verify"
+
+# --- Signed in ------------------------------------------------------------------------------
+# verify-otp auto-logs-in on success (backend/src/routes/customer.ts), so no separate Login step.
+- assertVisible: "You're signed in"
+- assertVisible: "${CUSTOMER_EMAIL}"
